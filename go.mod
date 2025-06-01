@@ -1,8 +1,6 @@
 module github.com/gojira/gojira
 
-go 1.21.0
-
-toolchain go1.22.3
+go 1.24.3
 
 require (
 	github.com/andygrunwald/go-jira v1.16.0
