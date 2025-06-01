@@ -5,6 +5,8 @@ import (
 	"os"
 
 	"github.com/gojira/gojira/internal/cmd"
+	// サブコマンドを登録するため
+	_ "github.com/gojira/gojira/internal/cmd"
 )
 
 func main() {
