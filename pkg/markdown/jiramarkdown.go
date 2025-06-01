@@ -280,3 +280,129 @@ func convertTables(content string) string {
 
 	return strings.Join(result, "\n")
 }
+
+// ConvertMarkdownToJira はMarkdownをJIRA記法に変換します
+func ConvertMarkdownToJira(input string) string {
+	if input == "" {
+		return input
+	}
+
+	// 改行を統一
+	content := strings.ReplaceAll(input, "\r\n", "\n")
+	content = strings.ReplaceAll(content, "\r", "\n")
+
+	// 見出し変換 (# -> h1., ## -> h2. など)
+	content = convertMarkdownHeadings(content)
+
+	// リスト変換
+	content = convertMarkdownLists(content)
+
+	// テキスト装飾変換
+	content = convertMarkdownTextFormatting(content)
+
+	// コードブロック変換
+	content = convertMarkdownCodeBlocks(content)
+
+	// リンク変換
+	content = convertMarkdownLinks(content)
+
+	return content
+}
+
+// convertMarkdownHeadings はMarkdownの見出しをJIRA記法に変換します
+func convertMarkdownHeadings(content string) string {
+	headings := map[string]string{
+		"######": "h6.",
+		"#####":  "h5.",
+		"####":   "h4.",
+		"###":    "h3.",
+		"##":     "h2.",
+		"#":      "h1.",
+	}
+
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		for md, jira := range headings {
+			if strings.HasPrefix(trimmed, md+" ") {
+				title := strings.TrimSpace(strings.TrimPrefix(trimmed, md))
+				lines[i] = jira + " " + title
+				break
+			}
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// convertMarkdownLists はMarkdownのリストをJIRA記法に変換します
+func convertMarkdownLists(content string) string {
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		// 順序なしリスト: - や * を * に変換
+		if strings.HasPrefix(strings.TrimSpace(line), "- ") {
+			indentMatch := regexp.MustCompile(`^(\s*)`).FindStringSubmatch(line)
+			indent := ""
+			if len(indentMatch) > 1 {
+				indent = indentMatch[1]
+			}
+			text := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "-"))
+			lines[i] = indent + "* " + text
+		}
+
+		// 順序付きリスト: 1. を # に変換
+		if matched, _ := regexp.MatchString(`^\s*\d+\.\s`, line); matched {
+			re := regexp.MustCompile(`^(\s*)\d+\.\s(.*)$`)
+			matches := re.FindStringSubmatch(line)
+			if len(matches) == 3 {
+				indent := matches[1]
+				text := matches[2]
+				lines[i] = indent + "# " + text
+			}
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// convertMarkdownTextFormatting はMarkdownのテキスト装飾をJIRA記法に変換します
+func convertMarkdownTextFormatting(content string) string {
+	// 太字: **text** -> *text*
+	content = regexp.MustCompile(`\*\*([^*]+)\*\*`).ReplaceAllString(content, "*$1*")
+
+	// 斜体: *text* -> _text_
+	content = regexp.MustCompile(`\*([^*]+)\*`).ReplaceAllString(content, "_$1_")
+
+	// インラインコード: `text` -> {{text}}
+	content = regexp.MustCompile("`([^`]+)`").ReplaceAllString(content, "{{$1}}")
+
+	return content
+}
+
+// convertMarkdownCodeBlocks はMarkdownのコードブロックをJIRA記法に変換します
+func convertMarkdownCodeBlocks(content string) string {
+	// ```language または ``` で始まるコードブロック
+	re := regexp.MustCompile("(?s)```(\\w+)?\\n(.*?)\\n```")
+	content = re.ReplaceAllStringFunc(content, func(match string) string {
+		submatch := re.FindStringSubmatch(match)
+		if len(submatch) >= 3 {
+			language := submatch[1]
+			code := submatch[2]
+			if language != "" {
+				return "{code:" + language + "}\n" + code + "\n{code}"
+			}
+			return "{code}\n" + code + "\n{code}"
+		}
+		return match
+	})
+
+	return content
+}
+
+// convertMarkdownLinks はMarkdownのリンクをJIRA記法に変換します
+func convertMarkdownLinks(content string) string {
+	// [text](url) -> [text|url]
+	content = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`).ReplaceAllString(content, "[$1|$2]")
+
+	return content
+}
