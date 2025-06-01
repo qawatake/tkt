@@ -14,17 +14,17 @@ import (
 
 // Ticket はJIRAチケットのローカル表現です
 type Ticket struct {
-	Key        string    `yaml:"key"`
-	ParentKey  string    `yaml:"parentKey"`
-	Type       string    `yaml:"type"`
-	Status     string    `yaml:"status"`
-	Assignee   string    `yaml:"assignee"`
-	Reporter   string    `yaml:"reporter"`
-	CreatedAt  time.Time `yaml:"created_at"`
-	UpdatedAt  time.Time `yaml:"updated_at"`
-	Title      string    `yaml:"-"`
-	Body       string    `yaml:"-"`
-	FilePath   string    `yaml:"-"`
+	Key       string    `yaml:"key"`
+	ParentKey string    `yaml:"parentKey"`
+	Type      string    `yaml:"type"`
+	Status    string    `yaml:"status"`
+	Assignee  string    `yaml:"assignee"`
+	Reporter  string    `yaml:"reporter"`
+	CreatedAt time.Time `yaml:"created_at"`
+	UpdatedAt time.Time `yaml:"updated_at"`
+	Title     string    `yaml:"-"`
+	Body      string    `yaml:"-"`
+	FilePath  string    `yaml:"-"`
 }
 
 // FromIssue はJIRA APIのIssueからTicketを作成します

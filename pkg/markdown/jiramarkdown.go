@@ -17,22 +17,22 @@ func ConvertJiraToMarkdown(input string) string {
 
 	// コードブロック変換（最初に処理してコードブロック内のマークアップを保護）
 	content = convertCodeBlocks(content)
-	
+
 	// 見出し変換
 	content = convertHeadings(content)
-	
+
 	// リスト変換（見出し変換の後に処理）
 	content = convertLists(content)
-	
+
 	// テキスト装飾変換
 	content = convertTextFormatting(content)
-	
+
 	// パネル変換
 	content = convertPanels(content)
-	
+
 	// 引用変換
 	content = convertQuotes(content)
-	
+
 	// リンク変換
 	content = convertLinks(content)
 
@@ -146,7 +146,7 @@ func convertLists(content string) string {
 			result = append(result, line)
 			continue
 		}
-		
+
 		// 順序付きリスト: # item -> 1. item（見出しでない場合のみ）
 		if regexp.MustCompile(`^# [^#]`).MatchString(line) {
 			result = append(result, "1. "+strings.TrimPrefix(line, "# "))
@@ -154,7 +154,7 @@ func convertLists(content string) string {
 			result = append(result, "   1. "+strings.TrimPrefix(line, "## "))
 		} else if regexp.MustCompile(`^### [^#]`).MatchString(line) {
 			result = append(result, "      1. "+strings.TrimPrefix(line, "### "))
-		// 順序なしリスト: * item -> - item
+			// 順序なしリスト: * item -> - item
 		} else if strings.HasPrefix(line, "* ") {
 			result = append(result, "- "+strings.TrimPrefix(line, "* "))
 		} else if strings.HasPrefix(line, "** ") {
@@ -234,7 +234,7 @@ func convertTables(content string) string {
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		
+
 		// JIRAテーブル行の検出: ||header1||header2|| または |cell1|cell2|
 		if strings.HasPrefix(trimmed, "||") && strings.HasSuffix(trimmed, "||") {
 			// ヘッダー行
@@ -243,18 +243,18 @@ func convertTables(content string) string {
 			for _, header := range headers {
 				cleanHeaders = append(cleanHeaders, strings.TrimSpace(header))
 			}
-			
+
 			if len(cleanHeaders) > 0 {
 				// Markdownテーブルヘッダー
 				result = append(result, "| "+strings.Join(cleanHeaders, " | ")+" |")
-				
+
 				// セパレータ行
 				var separators []string
 				for range cleanHeaders {
 					separators = append(separators, "---")
 				}
 				result = append(result, "| "+strings.Join(separators, " | ")+" |")
-				
+
 				inTable = true
 			}
 		} else if strings.HasPrefix(trimmed, "|") && strings.HasSuffix(trimmed, "|") && inTable {
@@ -264,7 +264,7 @@ func convertTables(content string) string {
 			for _, cell := range cells {
 				cleanCells = append(cleanCells, strings.TrimSpace(cell))
 			}
-			
+
 			if len(cleanCells) > 0 {
 				result = append(result, "| "+strings.Join(cleanCells, " | ")+" |")
 			}
