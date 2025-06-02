@@ -102,17 +102,27 @@ func (c *Client) FetchIssues() ([]ticket.Ticket, error) {
 		jql = fmt.Sprintf("project = %s", c.config.Project.Key)
 	}
 
-	result, err := c.jiraCLIClient.Search(jql, 0, 3)
-	if err != nil {
-		return nil, err
+	const limitRequestCount = 100 // 安全のための上限
+	const maxResults = 100        // これが上限っぽい。(500にしても100でcapされた。)
+	issues := make([]*jira.Issue, 0, 1000)
+	var offset uint = 0
+	for range limitRequestCount {
+		fmt.Printf("🎉 offset=%d\n", offset)
+		result, err := c.jiraCLIClient.Search(jql, offset, maxResults)
+		if err != nil {
+			return nil, err
+		}
+		issues = append(issues, result.Issues...)
+		offset += uint(len(result.Issues))
+		if offset >= uint(result.Total) {
+			break
+		}
 	}
 
 	fmt.Printf("JQLクエリ: %s\n", jql)
 
-	// JIRAからチケットを取得
-
-	tickets := make([]ticket.Ticket, 0, len(result.Issues))
-	for _, issue := range result.Issues {
+	tickets := make([]ticket.Ticket, 0, len(issues))
+	for _, issue := range issues {
 		ticket := convertJiraCLIIssueToTicket(issue)
 		tickets = append(tickets, ticket)
 	}

@@ -1,8 +1,9 @@
 # TODO
 
-- [ ] total > maxResultsのときもすべてのデータを取得する。
+- [x] total > maxResultsのときもすべてのデータを取得する。
 - [ ] fetchでキャッシュは問答無用で更新。fetchでtmpは更新しない。
 - [ ] md -> yml -> jsonにしてduckdbで検索(できればUIでも)
+- [ ] contextの利用。
 - [ ] `merge`コマンドの実装
 - [ ] マークダウンの書式改善
 - [ ] vscodeの拡張でスプリントごと、エピックごとにタスクを表示
