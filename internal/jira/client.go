@@ -107,7 +107,6 @@ func (c *Client) FetchIssues() ([]ticket.Ticket, error) {
 	issues := make([]*jira.Issue, 0, 1000)
 	var offset uint = 0
 	for range limitRequestCount {
-		fmt.Printf("🎉 offset=%d\n", offset)
 		result, err := c.jiraCLIClient.Search(jql, offset, maxResults)
 		if err != nil {
 			return nil, err

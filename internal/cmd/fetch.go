@@ -74,6 +74,12 @@ var fetchCmd = &cobra.Command{
 			fileName := ticket.Key + ".md"
 			outputPath := filepath.Join(outputDir, fileName)
 
+			// キャッシュディレクトリにも保存
+			savedCachePath, err := ticket.SaveToFile(cacheDir)
+			if err != nil {
+				fmt.Printf("警告: チケット %s のキャッシュ保存に失敗しました: %v\n", ticket.Key, err)
+			}
+
 			// 既存ファイルの上書き確認
 			if !forceFlag && utils.FileExists(outputPath) {
 				fmt.Printf("ファイル %s は既に存在します。-f フラグで上書きできます。\n", outputPath)
@@ -85,12 +91,6 @@ var fetchCmd = &cobra.Command{
 			if err != nil {
 				fmt.Printf("警告: チケット %s の保存に失敗しました: %v\n", ticket.Key, err)
 				continue
-			}
-
-			// キャッシュディレクトリにも保存
-			savedCachePath, err := ticket.SaveToFile(cacheDir)
-			if err != nil {
-				fmt.Printf("警告: チケット %s のキャッシュ保存に失敗しました: %v\n", ticket.Key, err)
 			}
 
 			fmt.Printf("保存: %s -> %s\n", ticket.Key, savedOutputPath)
