@@ -1,7 +1,7 @@
 # TODO
 
 - [x] total > maxResultsのときもすべてのデータを取得する。
-- [ ] fetchでキャッシュは問答無用で更新。
+- [x] fetchでキャッシュは問答無用で更新。
 - [ ] `merge`コマンドの実装。fetchでtmpは更新しない。
 - [ ] md -> yml -> jsonにしてduckdbで検索(できればUIでも)
 - [ ] contextの利用。
