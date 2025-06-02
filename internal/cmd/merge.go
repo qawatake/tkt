@@ -1,0 +1,74 @@
+package cmd
+
+import (
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+
+	"github.com/gojira/gojira/internal/config"
+	"github.com/gojira/gojira/pkg/utils"
+	"github.com/spf13/cobra"
+)
+
+var mergeCmd = &cobra.Command{
+	Use:   "merge",
+	Short: "キャッシュにあるリモートのコピーでローカルのJIRAチケットを上書きします。",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		fmt.Printf("JIRAチケットを %s にマージします\n", outputDir)
+
+		// 出力ディレクトリを確保
+		if err := utils.EnsureDir(outputDir); err != nil {
+			return fmt.Errorf("出力ディレクトリの作成に失敗しました: %v", err)
+		}
+
+		// 5. キャッシュディレクトリを確保
+		cacheDir, err := config.EnsureCacheDir()
+		if err != nil {
+			return fmt.Errorf("キャッシュディレクトリの作成に失敗しました: %v", err)
+		}
+
+		entries, err := os.ReadDir(cacheDir)
+		if err != nil {
+			return err
+		} // outputDirにコピー
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			srcPath := filepath.Join(cacheDir, entry.Name())
+			dstPath := filepath.Join(outputDir, entry.Name())
+
+			// ファイルをコピー
+			if err := copyFile(srcPath, dstPath); err != nil {
+				return fmt.Errorf("ファイルのコピーに失敗しました: %v", err)
+			}
+			fmt.Printf("コピー: %s -> %s\n", srcPath, dstPath)
+		}
+
+		fmt.Printf("キャッシュからローカルディレクトリへのマージが完了しました\n")
+		return nil
+	},
+}
+
+// copyFile はファイルをコピーします
+func copyFile(src, dst string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	_, err = io.Copy(dstFile, srcFile)
+	return err
+}
+
+func init() {
+	rootCmd.AddCommand(mergeCmd)
+}
