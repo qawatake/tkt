@@ -6,7 +6,6 @@ import (
 
 	"github.com/gojira/gojira/internal/config"
 	"github.com/gojira/gojira/internal/jira"
-	"github.com/gojira/gojira/internal/ticket"
 	"github.com/gojira/gojira/pkg/utils"
 	"github.com/spf13/cobra"
 )
@@ -47,12 +46,12 @@ var fetchCmd = &cobra.Command{
 
 		// 3. チケットを取得
 		fmt.Println("JIRAからチケットを取得中...")
-		issues, err := jiraClient.FetchIssues()
+		tickets, err := jiraClient.FetchIssues()
 		if err != nil {
 			return fmt.Errorf("チケットの取得に失敗しました: %v", err)
 		}
 
-		fmt.Printf("%d 件のチケットを取得しました\n", len(issues))
+		fmt.Printf("%d 件のチケットを取得しました\n", len(tickets))
 
 		// 4. マークダウンファイルに変換して保存
 		// 出力ディレクトリを確保
@@ -68,12 +67,11 @@ var fetchCmd = &cobra.Command{
 
 		// チケットを処理
 		savedCount := 0
-		for _, issue := range issues {
+		for _, ticket := range tickets {
 			// JIRAのイシューからTicketを作成
-			ticket := ticket.FromIssue(&issue)
 
 			// 出力ファイルパスを決定
-			fileName := issue.Key + ".md"
+			fileName := ticket.Key + ".md"
 			outputPath := filepath.Join(outputDir, fileName)
 
 			// 既存ファイルの上書き確認
@@ -85,19 +83,19 @@ var fetchCmd = &cobra.Command{
 			// 出力ディレクトリに保存
 			savedOutputPath, err := ticket.SaveToFile(outputDir)
 			if err != nil {
-				fmt.Printf("警告: チケット %s の保存に失敗しました: %v\n", issue.Key, err)
+				fmt.Printf("警告: チケット %s の保存に失敗しました: %v\n", ticket.Key, err)
 				continue
 			}
 
 			// キャッシュディレクトリにも保存
 			savedCachePath, err := ticket.SaveToFile(cacheDir)
 			if err != nil {
-				fmt.Printf("警告: チケット %s のキャッシュ保存に失敗しました: %v\n", issue.Key, err)
+				fmt.Printf("警告: チケット %s のキャッシュ保存に失敗しました: %v\n", ticket.Key, err)
 			}
 
-			fmt.Printf("保存: %s -> %s\n", issue.Key, savedOutputPath)
+			fmt.Printf("保存: %s -> %s\n", ticket.Key, savedOutputPath)
 			if savedCachePath != "" {
-				fmt.Printf("キャッシュ: %s -> %s\n", issue.Key, savedCachePath)
+				fmt.Printf("キャッシュ: %s -> %s\n", ticket.Key, savedCachePath)
 			}
 			savedCount++
 		}

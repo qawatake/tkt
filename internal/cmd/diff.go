@@ -22,7 +22,7 @@ var diffCmd = &cobra.Command{
 差分を計算する前に~/.cache/gojiraにリモートのチケットをfetchします。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Printf("ローカルとリモートのJIRAチケットの差分を表示します（ディレクトリ: %s, フォーマット: %s）\n", diffDir, diffFormat)
-		
+
 		// 1. 設定ファイルを読み込む
 		cfg, err := config.LoadConfig()
 		if err != nil {
@@ -43,18 +43,17 @@ var diffCmd = &cobra.Command{
 		}
 
 		// リモートのチケットを取得
-		issues, err := jiraClient.FetchIssues()
+		tickets, err := jiraClient.FetchIssues()
 		if err != nil {
 			return fmt.Errorf("リモートチケットの取得に失敗しました: %v", err)
 		}
 
 		// キャッシュディレクトリに保存
-		fmt.Printf("リモートから %d 件のチケットを取得しました\n", len(issues))
-		for _, issue := range issues {
-			remoteTicket := ticket.FromIssue(&issue)
-			_, err := remoteTicket.SaveToFile(cacheDir)
+		fmt.Printf("リモートから %d 件のチケットを取得しました\n", len(tickets))
+		for _, ticket := range tickets {
+			_, err := ticket.SaveToFile(cacheDir)
 			if err != nil {
-				fmt.Printf("警告: チケット %s のキャッシュ保存に失敗しました: %v\n", issue.Key, err)
+				fmt.Printf("警告: チケット %s のキャッシュ保存に失敗しました: %v\n", ticket.Key, err)
 			}
 		}
 

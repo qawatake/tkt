@@ -1,17 +1,25 @@
 package jira
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
+	"time"
 
 	jiralib "github.com/andygrunwald/go-jira"
+	"github.com/ankitpokhrel/jira-cli/pkg/adf"
+	"github.com/ankitpokhrel/jira-cli/pkg/jira"
+	"github.com/ankitpokhrel/jira-cli/pkg/md"
 	"github.com/gojira/gojira/internal/config"
+	"github.com/gojira/gojira/internal/ticket"
 )
 
 // Client はJIRA APIクライアントのラッパーです
 type Client struct {
-	jiraClient *jiralib.Client
-	config     *config.Config
+	jiraClient    *jiralib.Client
+	jiraCLIClient *jira.Client
+	config        *config.Config
 }
 
 // NewClient は新しいJIRA APIクライアントを作成します
@@ -54,10 +62,21 @@ func NewClient(cfg *config.Config) (*Client, error) {
 		return nil, fmt.Errorf("JIRAクライアントの作成に失敗しました: %v", err)
 	}
 
+	jiraCLIClient := jira.NewClient(newJIRACLIConfig(cfg))
+
 	return &Client{
-		jiraClient: jiraClient,
-		config:     cfg,
+		jiraClient:    jiraClient,
+		jiraCLIClient: jiraCLIClient,
+		config:        cfg,
 	}, nil
+}
+
+func newJIRACLIConfig(cfg *config.Config) jira.Config {
+	return jira.Config{
+		Server:   cfg.Server,
+		Login:    cfg.Login,
+		APIToken: getAPIToken(),
+	}
 }
 
 // getAPIToken は環境変数からAPIトークンを取得します
@@ -71,7 +90,7 @@ func getAPIToken() string {
 }
 
 // FetchIssues はJQLに基づいてJIRAチケットを取得します
-func (c *Client) FetchIssues() ([]jiralib.Issue, error) {
+func (c *Client) FetchIssues() ([]ticket.Ticket, error) {
 	// まずプロジェクトが存在するか確認
 	if err := c.validateProject(); err != nil {
 		return nil, err
@@ -83,19 +102,75 @@ func (c *Client) FetchIssues() ([]jiralib.Issue, error) {
 		jql = fmt.Sprintf("project = %s", c.config.Project.Key)
 	}
 
+	result, err := c.jiraCLIClient.Search(jql, 0, 3)
+	if err != nil {
+		return nil, err
+	}
+
 	fmt.Printf("JQLクエリ: %s\n", jql)
 
 	// JIRAからチケットを取得
-	issues, _, err := c.jiraClient.Issue.Search(jql, &jiralib.SearchOptions{
-		MaxResults: 1000, // 最大結果数
-		Fields:     []string{"summary", "description", "issuetype", "status", "assignee", "reporter", "created", "updated", "parent"},
-	})
 
-	if err != nil {
-		return nil, fmt.Errorf("JIRAチケットの取得に失敗しました: %v", err)
+	tickets := make([]ticket.Ticket, 0, len(result.Issues))
+	for _, issue := range result.Issues {
+		ticket := convertJiraCLIIssueToTicket(issue)
+		tickets = append(tickets, ticket)
 	}
 
-	return issues, nil
+	return tickets, nil
+}
+
+func convertJiraCLIIssueToTicket(issue *jira.Issue) ticket.Ticket {
+	ticket := ticket.Ticket{
+		Key:    issue.Key,
+		Title:  issue.Fields.Summary,
+		Type:   strings.ToLower(issue.Fields.IssueType.Name),
+		Status: issue.Fields.Status.Name,
+	}
+
+	adfBody := ifaceToADF(issue.Fields.Description)
+	ticket.Body = adf.NewTranslator(adfBody, adf.NewJiraMarkdownTranslator()).Translate()
+
+	if issue.Fields.Parent != nil {
+		ticket.ParentKey = issue.Fields.Parent.Key
+	}
+
+	if issue.Fields.Assignee.Name != "" {
+		ticket.Assignee = issue.Fields.Assignee.Name
+	}
+
+	if issue.Fields.Reporter.Name != "" {
+		ticket.Reporter = issue.Fields.Reporter.Name
+	}
+
+	// Parse timestamps
+	if createdTime, err := time.Parse(time.RFC3339, issue.Fields.Created); err == nil {
+		ticket.CreatedAt = createdTime
+	}
+
+	if updatedTime, err := time.Parse(time.RFC3339, issue.Fields.Updated); err == nil {
+		ticket.UpdatedAt = updatedTime
+	}
+
+	return ticket
+}
+
+func ifaceToADF(v interface{}) *adf.ADF {
+	if v == nil {
+		return nil
+	}
+
+	var doc *adf.ADF
+
+	js, err := json.Marshal(v)
+	if err != nil {
+		return nil // ignore invalid data
+	}
+	if err = json.Unmarshal(js, &doc); err != nil {
+		return nil // ignore invalid data
+	}
+
+	return doc
 }
 
 // validateProject はプロジェクトが存在するか確認します
@@ -110,8 +185,13 @@ func (c *Client) validateProject() error {
 }
 
 // UpdateIssue はJIRAチケットを更新します
-func (c *Client) UpdateIssue(issue *jiralib.Issue) error {
-	_, _, err := c.jiraClient.Issue.Update(issue)
+func (c *Client) UpdateIssue(ticket ticket.Ticket) error {
+	err := c.jiraCLIClient.Edit(ticket.Key, &jira.EditRequest{
+		IssueType:      ticket.Type,
+		Summary:        ticket.Title,
+		ParentIssueKey: ticket.ParentKey,
+		Body:           md.ToJiraMD(ticket.Body),
+	})
 	if err != nil {
 		return fmt.Errorf("JIRAチケットの更新に失敗しました: %v", err)
 	}

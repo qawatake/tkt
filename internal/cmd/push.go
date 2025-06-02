@@ -3,11 +3,9 @@ package cmd
 import (
 	"fmt"
 
-	jiralib "github.com/andygrunwald/go-jira"
 	"github.com/gojira/gojira/internal/config"
 	"github.com/gojira/gojira/internal/jira"
 	"github.com/gojira/gojira/internal/ticket"
-	"github.com/gojira/gojira/pkg/markdown"
 	"github.com/spf13/cobra"
 )
 
@@ -45,18 +43,17 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 		}
 
 		// リモートのチケットを取得
-		issues, err := jiraClient.FetchIssues()
+		tickets, err := jiraClient.FetchIssues()
 		if err != nil {
 			return fmt.Errorf("リモートチケットの取得に失敗しました: %v", err)
 		}
 
 		// キャッシュディレクトリに保存
-		fmt.Printf("リモートから %d 件のチケットを取得しました\n", len(issues))
-		for _, issue := range issues {
-			remoteTicket := ticket.FromIssue(&issue)
-			_, err := remoteTicket.SaveToFile(cacheDir)
+		fmt.Printf("リモートから %d 件のチケットを取得しました\n", len(tickets))
+		for _, ticket := range tickets {
+			_, err := ticket.SaveToFile(cacheDir)
 			if err != nil {
-				fmt.Printf("警告: チケット %s のキャッシュ保存に失敗しました: %v\n", issue.Key, err)
+				fmt.Printf("警告: チケット %s のキャッシュ保存に失敗しました: %v\n", ticket.Key, err)
 			}
 		}
 
@@ -108,8 +105,7 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 				fmt.Printf("新規チケットを作成中: %s\n", localTicket.Title)
 
 				// JIRAにチケットを作成
-				description := markdown.ConvertMarkdownToJira(localTicket.Body)
-				newIssue, err := jiraClient.CreateIssue(localTicket.Type, localTicket.Title, description, localTicket.ParentKey)
+				newIssue, err := jiraClient.CreateIssue(localTicket.Type, localTicket.Title, localTicket.Body, localTicket.ParentKey)
 				if err != nil {
 					fmt.Printf("エラー: チケット作成に失敗しました: %v\n", err)
 					continue
@@ -135,18 +131,8 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 				// 既存チケット更新
 				fmt.Printf("チケットを更新中: %s\n", localTicket.Key)
 
-				// JIRAのチケットを構築
-				description := markdown.ConvertMarkdownToJira(localTicket.Body)
-				issue := &jiralib.Issue{
-					Key: localTicket.Key,
-					Fields: &jiralib.IssueFields{
-						Summary:     localTicket.Title,
-						Description: description,
-					},
-				}
-
 				// JIRAを更新
-				err := jiraClient.UpdateIssue(issue)
+				err := jiraClient.UpdateIssue(*localTicket)
 				if err != nil {
 					fmt.Printf("エラー: チケット更新に失敗しました: %v\n", err)
 					continue

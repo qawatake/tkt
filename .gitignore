@@ -1,3 +1,4 @@
 /gojira
 tmp
 bin/
+vendor/
