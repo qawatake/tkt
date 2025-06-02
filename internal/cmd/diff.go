@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/gojira/gojira/internal/config"
-	"github.com/gojira/gojira/internal/jira"
 	"github.com/gojira/gojira/internal/ticket"
 	"github.com/spf13/cobra"
 )
@@ -23,38 +22,10 @@ var diffCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Printf("ローカルとリモートのJIRAチケットの差分を表示します（ディレクトリ: %s, フォーマット: %s）\n", diffDir, diffFormat)
 
-		// 1. 設定ファイルを読み込む
-		cfg, err := config.LoadConfig()
-		if err != nil {
-			return fmt.Errorf("設定ファイルの読み込みに失敗しました: %v", err)
-		}
-
 		// 2. キャッシュディレクトリを確保
 		cacheDir, err := config.EnsureCacheDir()
 		if err != nil {
 			return fmt.Errorf("キャッシュディレクトリの作成に失敗しました: %v", err)
-		}
-
-		// 3. JIRAに接続してリモートのチケットをキャッシュにfetch
-		fmt.Println("リモートのJIRAチケットをキャッシュに取得中...")
-		jiraClient, err := jira.NewClient(cfg)
-		if err != nil {
-			return fmt.Errorf("JIRAクライアントの作成に失敗しました: %v", err)
-		}
-
-		// リモートのチケットを取得
-		tickets, err := jiraClient.FetchIssues()
-		if err != nil {
-			return fmt.Errorf("リモートチケットの取得に失敗しました: %v", err)
-		}
-
-		// キャッシュディレクトリに保存
-		fmt.Printf("リモートから %d 件のチケットを取得しました\n", len(tickets))
-		for _, ticket := range tickets {
-			_, err := ticket.SaveToFile(cacheDir)
-			if err != nil {
-				fmt.Printf("警告: チケット %s のキャッシュ保存に失敗しました: %v\n", ticket.Key, err)
-			}
 		}
 
 		// 4. ローカルとキャッシュの差分を検出
