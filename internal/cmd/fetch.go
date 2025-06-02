@@ -2,17 +2,14 @@ package cmd
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/gojira/gojira/internal/config"
 	"github.com/gojira/gojira/internal/jira"
-	"github.com/gojira/gojira/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
 var (
 	outputDir string
-	forceFlag bool
 )
 
 var fetchCmd = &cobra.Command{
@@ -22,8 +19,6 @@ var fetchCmd = &cobra.Command{
 カレントディレクトリの指定されたディレクトリにJIRAチケットをダウンロードします。
 エピックもissueチケットもフラットに格納します。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Printf("JIRAチケットを %s にダウンロードします\n", outputDir)
-
 		// 1. 設定ファイルを読み込む
 		cfg, err := config.LoadConfig()
 		if err != nil {
@@ -53,12 +48,6 @@ var fetchCmd = &cobra.Command{
 
 		fmt.Printf("%d 件のチケットを取得しました\n", len(tickets))
 
-		// 4. マークダウンファイルに変換して保存
-		// 出力ディレクトリを確保
-		if err := utils.EnsureDir(outputDir); err != nil {
-			return fmt.Errorf("出力ディレクトリの作成に失敗しました: %v", err)
-		}
-
 		// 5. キャッシュディレクトリを確保
 		cacheDir, err := config.EnsureCacheDir()
 		if err != nil {
@@ -70,33 +59,13 @@ var fetchCmd = &cobra.Command{
 		for _, ticket := range tickets {
 			// JIRAのイシューからTicketを作成
 
-			// 出力ファイルパスを決定
-			fileName := ticket.Key + ".md"
-			outputPath := filepath.Join(outputDir, fileName)
-
-			// キャッシュディレクトリにも保存
+			// キャッシュディレクトリに保存
 			savedCachePath, err := ticket.SaveToFile(cacheDir)
 			if err != nil {
 				fmt.Printf("警告: チケット %s のキャッシュ保存に失敗しました: %v\n", ticket.Key, err)
 			}
 
-			// 既存ファイルの上書き確認
-			if !forceFlag && utils.FileExists(outputPath) {
-				fmt.Printf("ファイル %s は既に存在します。-f フラグで上書きできます。\n", outputPath)
-				continue
-			}
-
-			// 出力ディレクトリに保存
-			savedOutputPath, err := ticket.SaveToFile(outputDir)
-			if err != nil {
-				fmt.Printf("警告: チケット %s の保存に失敗しました: %v\n", ticket.Key, err)
-				continue
-			}
-
-			fmt.Printf("保存: %s -> %s\n", ticket.Key, savedOutputPath)
-			if savedCachePath != "" {
-				fmt.Printf("キャッシュ: %s -> %s\n", ticket.Key, savedCachePath)
-			}
+			fmt.Printf("保存: %s -> %s\n", ticket.Key, savedCachePath)
 			savedCount++
 		}
 
@@ -110,5 +79,4 @@ func init() {
 
 	// フラグの設定
 	fetchCmd.Flags().StringVarP(&outputDir, "output", "o", "./tmp", "出力ディレクトリ")
-	fetchCmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "既存ファイルを上書き")
 }

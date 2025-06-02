@@ -11,6 +11,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	forceFlag bool
+)
+
 var mergeCmd = &cobra.Command{
 	Use:   "merge",
 	Short: "キャッシュにあるリモートのコピーでローカルのJIRAチケットを上書きします。",
@@ -38,6 +42,12 @@ var mergeCmd = &cobra.Command{
 			}
 			srcPath := filepath.Join(cacheDir, entry.Name())
 			dstPath := filepath.Join(outputDir, entry.Name())
+
+			// 既存ファイルがあり、上書きフラグが立っていない場合はスキップ
+			if _, err := os.Stat(dstPath); err == nil && !forceFlag {
+				fmt.Printf("スキップ: %s (既存ファイル)\n", dstPath)
+				continue
+			}
 
 			// ファイルをコピー
 			if err := copyFile(srcPath, dstPath); err != nil {
@@ -71,4 +81,6 @@ func copyFile(src, dst string) error {
 
 func init() {
 	rootCmd.AddCommand(mergeCmd)
+
+	mergeCmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "既存ファイルを上書き")
 }
