@@ -9,11 +9,12 @@
   - `D select * from '.qwtk/hoge.json'`
 - [x] diffのフォーマットを改善する。
 - [x] pushするときに、変更対象のファイルだけfetchしてきて内容を比較する
+- [x] pushするときに、差分があったらdiffを表示して、pushするか確認する。
+- [x] diffの書式改善。
+- [ ] diffのpagerを改善。
 - [ ] コードブロックで言語がちゃんと読み込まれない。https://github.com/kentaro-m/blackfriday-confluence/tree/master を修正すればいい。
 - [ ] 差分がないのにあると認識される。
-- [ ] pushするときに、差分があったらdiffを表示して、pushするか確認する。
 - [ ] チケット作成がうまくいかない。typeの翻訳がうまくいってないっぽい。
-- [ ] diffの書式改善。
 - [ ] マークダウンの書式改善
 - [ ] contextの利用。
 - [ ] vscodeの拡張でスプリントごと、エピックごとにタスクを表示
