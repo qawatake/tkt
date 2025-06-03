@@ -48,7 +48,6 @@ var mergeCmd = &cobra.Command{
 				fmt.Printf("スキップ: %s (既存ファイル)\n", dstPath)
 				continue
 			}
-
 			// ファイルをコピー
 			if err := copyFile(srcPath, dstPath); err != nil {
 				return fmt.Errorf("ファイルのコピーに失敗しました: %v", err)

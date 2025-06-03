@@ -78,9 +78,7 @@ func (t *Ticket) ToMarkdown() string {
 	})
 
 	// マークダウン本文を作成
-	content := fmt.Sprintf("# %s\n\n%s", t.Title, t.Body)
-
-	return frontMatter + content
+	return frontMatter + t.Body
 }
 
 // SaveToFile はチケットをファイルに保存します

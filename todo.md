@@ -9,6 +9,8 @@
   - `D select * from '.qwtk/hoge.json'`
 - [x] diffのフォーマットを改善する。
 - [x] pushするときに、変更対象のファイルだけfetchしてきて内容を比較する
+- [ ] コードブロックで言語がちゃんと読み込まれない。https://github.com/kentaro-m/blackfriday-confluence/tree/master を修正すればいい。
+- [ ] 差分がないのにあると認識される。
 - [ ] pushするときに、差分があったらdiffを表示して、pushするか確認する。
 - [ ] チケット作成がうまくいかない。typeの翻訳がうまくいってないっぽい。
 - [ ] diffの書式改善。

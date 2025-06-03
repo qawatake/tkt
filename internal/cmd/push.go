@@ -6,6 +6,7 @@ import (
 	"github.com/gojira/gojira/internal/config"
 	"github.com/gojira/gojira/internal/jira"
 	"github.com/gojira/gojira/internal/ticket"
+	"github.com/gojira/gojira/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -109,6 +110,22 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 		updatedCount := 0
 		createdCount := 0
 		for _, diff := range changedTickets {
+			// 差分がある場合はユーザに確認
+			if !dryRun {
+				fmt.Printf("\n=== ファイル: %s ===\n", diff.FilePath)
+				if diff.Key != "" {
+					fmt.Printf("チケット: %s\n", diff.Key)
+				} else {
+					fmt.Printf("新規チケット\n")
+				}
+				fmt.Printf("差分:\n%s\n", diff.DiffText)
+
+				if !utils.PromptForConfirmation("このファイルをpushしますか？") {
+					fmt.Printf("スキップ: %s\n", diff.FilePath)
+					continue
+				}
+			}
+
 			// ローカルのチケットを読み込み
 			localTicket, err := ticket.FromFile(diff.FilePath)
 			if err != nil {
