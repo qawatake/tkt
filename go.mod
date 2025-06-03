@@ -5,7 +5,8 @@ go 1.24.3
 require (
 	github.com/andygrunwald/go-jira v1.16.0
 	github.com/ankitpokhrel/jira-cli v1.6.0
-	github.com/sergi/go-diff v1.3.1
+	github.com/go-git/go-git/v5 v5.16.0
+	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	gopkg.in/yaml.v3 v3.0.1
@@ -20,6 +21,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kentaro-m/blackfriday-confluence v0.0.0-20220126124413-8e85477b49b3 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
+	github.com/pjbgf/sha1cd v0.3.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
@@ -30,6 +32,6 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/trivago/tgo v1.0.7 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/sys v0.32.0 // indirect
+	golang.org/x/text v0.24.0 // indirect
 )

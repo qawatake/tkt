@@ -7,6 +7,8 @@
   - https://github.com/qawatake/mdmdump
   - mdmdump tmp > .qwtk/hoge.json
   - `D select * from '.qwtk/hoge.json'`
+- [x] diffのフォーマットを改善する。
+- [ ] pushするときに、変更対象のファイルだけfetchしてきて内容を比較して、変更があったらdiffを表示して、pushするか確認する。
 - [ ] チケット作成がうまくいかない。typeの翻訳がうまくいってないっぽい。
 - [ ] diffの書式改善。
 - [ ] マークダウンの書式改善
