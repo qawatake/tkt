@@ -42,21 +42,6 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 			return fmt.Errorf("JIRAクライアントの作成に失敗しました: %v", err)
 		}
 
-		// リモートのチケットを取得
-		tickets, err := jiraClient.FetchIssues()
-		if err != nil {
-			return fmt.Errorf("リモートチケットの取得に失敗しました: %v", err)
-		}
-
-		// キャッシュディレクトリに保存
-		fmt.Printf("リモートから %d 件のチケットを取得しました\n", len(tickets))
-		for _, ticket := range tickets {
-			_, err := ticket.SaveToFile(cacheDir)
-			if err != nil {
-				fmt.Printf("警告: チケット %s のキャッシュ保存に失敗しました: %v\n", ticket.Key, err)
-			}
-		}
-
 		// 4. ローカルとキャッシュの差分を検出
 		fmt.Println("ローカルとリモートの差分を検出中...")
 		diffs, err := ticket.CompareDirs(pushDir, cacheDir)
@@ -75,6 +60,37 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 		if len(changedTickets) == 0 {
 			fmt.Println("差分はありません")
 			return nil
+		}
+
+		// 差分があるチケットについては最新の状態をキャッシュに保存し直す。
+		for _, diff := range changedTickets {
+			key := diff.Key
+			if key == "" {
+				// 新規作成なのでスキップ
+				continue
+			}
+			remoteTicket, err := jiraClient.FetchIssue(key)
+			if err != nil {
+				return err
+			}
+			_, err = remoteTicket.SaveToFile(cacheDir)
+			if err != nil {
+				return err
+			}
+		}
+
+		// 改めて差分を検出
+		diffs, err = ticket.CompareDirs(pushDir, cacheDir)
+		if err != nil {
+			return fmt.Errorf("差分の検出に失敗しました: %v", err)
+		}
+
+		// 差分があるチケットを抽出
+		changedTickets = nil
+		for _, diff := range diffs {
+			if diff.HasDiff {
+				changedTickets = append(changedTickets, diff)
+			}
 		}
 
 		fmt.Printf("%d 件のチケットに差分があります\n", len(changedTickets))

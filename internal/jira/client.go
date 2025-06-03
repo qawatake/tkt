@@ -89,6 +89,22 @@ func getAPIToken() string {
 	return token
 }
 
+func (c *Client) FetchIssue(key string) (*ticket.Ticket, error) {
+	// まずプロジェクトが存在するか確認
+	if err := c.validateProject(); err != nil {
+		return nil, err
+	}
+
+	// JIRAチケットを取得
+	issue, err := c.jiraCLIClient.GetIssue(key)
+	if err != nil {
+		return nil, fmt.Errorf("JIRAチケットの取得に失敗しました: %v", err)
+	}
+
+	ticket := convertJiraCLIIssueToTicket(issue)
+	return &ticket, nil
+}
+
 // FetchIssues はJQLに基づいてJIRAチケットを取得します
 func (c *Client) FetchIssues() ([]ticket.Ticket, error) {
 	// まずプロジェクトが存在するか確認
