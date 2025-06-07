@@ -181,9 +181,17 @@ func (tr *MarkdownTranslator) Close(n Connector) string {
 		case NodeHeading:
 			tag.WriteString("\n")
 		case NodeBulletList:
+			if tr.list.depthU == 1 {
+				// 最上位レベルのリストが終了する場合、空行を追加
+				tag.WriteString("\n")
+			}
 			tr.list.ul[tr.list.depthU] = false
 			tr.list.depthU--
 		case NodeOrderedList:
+			if tr.list.depthO == 1 {
+				// 最上位レベルのリストが終了する場合、空行を追加
+				tag.WriteString("\n")
+			}
 			tr.list.ol[tr.list.depthO] = false
 			tr.list.depthO--
 		case NodeParagraph:
