@@ -15,13 +15,16 @@
   - item listの下に空行があるかないかjiraは気にする。
   - のに、fetchするとその空行がなくなる。
   - ので、adf→mdがおかしい。
-- [ ] fetchのパフォーマンス改善。
+- [x] fetchのパフォーマンス改善。
+  - [x] 並列化
+  - [x] フィールドのフィルタ
 - [ ] diffのpagerを改善。
 - [ ] 複数行の箇条書き
 - [ ] コードブロックで言語がちゃんと読み込まれない。https://github.com/kentaro-m/blackfriday-confluence/tree/master を修正すればいい。
 - [ ] チケット作成がうまくいかない。typeの翻訳がうまくいってないっぽい。
 - [ ] チケット削除。
 - [ ] マークダウンの書式改善
+- [ ] errors k1low3のとか？
 - [ ] contextの利用。
 - [ ] vscodeの拡張でスプリントごと、エピックごとにタスクを表示
 - [ ] vscodeの拡張でタイトルをファイル名に
