@@ -7,10 +7,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Code-Hex/dd"
+
 	jiralib "github.com/andygrunwald/go-jira"
-	"github.com/ankitpokhrel/jira-cli/pkg/adf"
 	"github.com/ankitpokhrel/jira-cli/pkg/jira"
 	"github.com/ankitpokhrel/jira-cli/pkg/md"
+	"github.com/gojira/gojira/internal/adf"
 	"github.com/gojira/gojira/internal/config"
 	"github.com/gojira/gojira/internal/ticket"
 )
