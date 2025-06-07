@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/gojira/gojira/internal/derrors"
 	"github.com/gojira/gojira/internal/ticket"
 	"github.com/k1LoW/errors"
+	"github.com/sourcegraph/conc/pool"
 )
 
 // Client はJIRA APIクライアントのラッパーです
@@ -107,7 +109,8 @@ func (c *Client) FetchIssue(key string) (*ticket.Ticket, error) {
 }
 
 // FetchIssues はJQLに基づいてJIRAチケットを取得します
-func (c *Client) FetchIssues() ([]*ticket.Ticket, error) {
+func (c *Client) FetchIssues() (_ []*ticket.Ticket, err error) {
+	defer derrors.Wrap(&err)
 	// まずプロジェクトが存在するか確認
 	if err := c.validateProject(); err != nil {
 		return nil, err
@@ -119,20 +122,54 @@ func (c *Client) FetchIssues() ([]*ticket.Ticket, error) {
 		jql = JQL(fmt.Sprintf("project = %s", c.config.Project.Key))
 	}
 
-	const limitRequestCount = 100 // 安全のための上限
-	const maxResults = 100        // これが上限っぽい。(500にしても100でcapされた。)
-	issues := make([]*Issue, 0, 1000)
-	var offset uint = 0
-	for range limitRequestCount {
-		result, err := c.Search(context.Background(), JQL(jql), int(offset), maxResults)
+	fetchIssues := func() (_ []*Issue, err error) {
+		defer derrors.Wrap(&err)
+		issues := make([]*Issue, 0, 10000)
+		const limitRequestCount = 100 // 安全のための上限
+		const bigNumber = 1
+		ctx := context.Background()
+		result, err := c.Search(ctx, jql, 0, bigNumber)
 		if err != nil {
 			return nil, err
 		}
-		issues = append(issues, result.Issues...)
-		offset += uint(len(result.Issues))
-		if offset >= uint(result.Total) {
-			break
+		if result.Total <= len(result.Issues) {
+			// 1回のリクエストで全て取得できる場合
+			return result.Issues, nil
 		}
+		issues = append(issues, result.Issues...)
+
+		// > To find the maximum number of items that an operation could return, set maxResults to a large number—for example, over 1000—and if the returned value of maxResults is less than the requested value, the returned value is the maximum.
+		// https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/#pagination
+		maxResults := result.MaxResults // 上限の実際の値を取得すうる。(500にしても100でcapされた。)
+
+		p := pool.NewWithResults[[]*Issue]().WithContext(ctx).WithMaxGoroutines(5)
+		requestCount := 0
+		for startAt := len(result.Issues); startAt < result.Total; startAt += maxResults {
+			if requestCount >= limitRequestCount {
+				break // 安全のため、リクエスト数の上限を設定
+			}
+			requestCount++
+			p.Go(func(ctx context.Context) ([]*Issue, error) {
+				fmt.Println(startAt, maxResults, jql)
+				// ここでJQLを使ってJIRA APIに問い合わせる。
+				result, err := c.Search(ctx, jql, startAt, maxResults)
+				if err != nil {
+					return nil, err
+				}
+				return result.Issues, nil
+			})
+		}
+		listOfIssues, err := p.Wait()
+		if err != nil {
+			return nil, err
+		}
+		issues = append(issues, slices.Concat(listOfIssues...)...)
+		return issues, nil
+	}
+
+	issues, err := fetchIssues()
+	if err != nil {
+		return nil, err
 	}
 
 	tickets := make([]*ticket.Ticket, 0, len(issues))
