@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ankitpokhrel/jira-cli/pkg/md"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/filemode"
 	"github.com/go-git/go-git/v5/plumbing/format/diff"
+	"github.com/gojira/gojira/internal/md"
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
 

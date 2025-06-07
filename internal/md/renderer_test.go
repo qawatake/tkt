@@ -4,8 +4,9 @@ package md_test
 import (
 	"testing"
 
-	bfconfluence "github.com/kentaro-m/blackfriday-confluence"
+	bfconfluence "github.com/gojira/gojira/internal/md"
 	bf "github.com/russross/blackfriday/v2"
+	"github.com/stretchr/testify/assert"
 )
 
 type testData struct {
@@ -17,14 +18,14 @@ type testData struct {
 
 func doTest(t *testing.T, tdt []testData) {
 	for _, v := range tdt {
-		renderer := &bfconfluence.Renderer{Flags: v.flags}
-		md := bf.New(bf.WithRenderer(renderer), bf.WithExtensions(v.extensions))
-		ast := md.Parse([]byte(v.input))
-		output := string(renderer.Render(ast))
+		t.Run(v.input, func(t *testing.T) {
+			renderer := &bfconfluence.Renderer{Flags: v.flags}
+			md := bf.New(bf.WithRenderer(renderer), bf.WithExtensions(v.extensions))
+			ast := md.Parse([]byte(v.input))
+			output := string(renderer.Render(ast))
 
-		if output != v.expected {
-			t.Errorf("got:%#v\nwant:%#v", output, v.expected)
-		}
+			assert.Equal(t, v.expected, output)
+		})
 	}
 }
 
@@ -132,12 +133,12 @@ func TestCodeBlock(t *testing.T) {
 		},
 		{
 			input:      "```c\n\nint main(void) {\n printf(\"Hello, world.\"); \n}\n```",
-			expected:   "{code:language=c}\n\nint main(void) {\n printf(\"Hello, world.\"); \n}\n{code}\n\n",
+			expected:   "{code:c}\n\nint main(void) {\n printf(\"Hello, world.\"); \n}\n{code}\n\n",
 			extensions: bf.CommonExtensions,
 		},
 		{
 			input:      "```c\n\nint main(void) {\n printf(\"Hello, world.\"); \n}\n```",
-			expected:   "{code:language=c}\n\nint main(void) {\n printf(\"Hello, world.\"); \n}\n{code}\n\n",
+			expected:   "{code:c}\n\nint main(void) {\n printf(\"Hello, world.\"); \n}\n{code}\n\n",
 			flags:      bfconfluence.InformationMacros,
 			extensions: bf.CommonExtensions,
 		},
@@ -163,6 +164,11 @@ func TestCodeBlock(t *testing.T) {
 			input:      "```info\n\nhighlighting infomation\n```",
 			expected:   "{info}\n\nhighlighting infomation\n{info}\n\n",
 			flags:      bfconfluence.InformationMacros,
+			extensions: bf.CommonExtensions,
+		},
+		{
+			input:      "```go\n\npackage main\n\nimport \"fmt\"\n\nfunc main() {\n fmt.Println(\"hello world\")\n}\n```",
+			expected:   "{code:go}\n\npackage main\n\nimport \"fmt\"\n\nfunc main() {\n fmt.Println(\"hello world\")\n}\n{code}\n\n",
 			extensions: bf.CommonExtensions,
 		},
 	}

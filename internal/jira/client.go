@@ -13,10 +13,10 @@ import (
 
 	jiralib "github.com/andygrunwald/go-jira"
 	"github.com/ankitpokhrel/jira-cli/pkg/jira"
-	"github.com/ankitpokhrel/jira-cli/pkg/md"
 	"github.com/gojira/gojira/internal/adf"
 	"github.com/gojira/gojira/internal/config"
 	"github.com/gojira/gojira/internal/derrors"
+	"github.com/gojira/gojira/internal/md"
 	"github.com/gojira/gojira/internal/ticket"
 	"github.com/k1LoW/errors"
 	"github.com/sourcegraph/conc/pool"
