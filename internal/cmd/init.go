@@ -1,0 +1,301 @@
+package cmd
+
+import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+
+	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
+)
+
+var initCmd = &cobra.Command{
+	Use:   "init",
+	Short: "インタラクティブに設定ファイルを作成",
+	Long: `インタラクティブに設定ファイルを作成します。
+JIRAサーバーのURL、ログインメール、プロジェクト、ボードを選択して
+~/.config/gojira/config.ymlに設定を保存します。`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runInit()
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(initCmd)
+}
+
+type InitConfig struct {
+	AuthType string `yaml:"auth_type"`
+	Login    string `yaml:"login"`
+	Server   string `yaml:"server"`
+	Project  struct {
+		Key  string `yaml:"key"`
+		Type string `yaml:"type"`
+	} `yaml:"project"`
+	Board struct {
+		ID   int    `yaml:"id"`
+		Name string `yaml:"name"`
+		Type string `yaml:"type"`
+	} `yaml:"board"`
+	JQL      string `yaml:"jql"`
+	Timezone string `yaml:"timezone"`
+}
+
+type JiraProject struct {
+	Key  string `json:"key"`
+	Name string `json:"name"`
+	ID   string `json:"id"`
+}
+
+type JiraBoard struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
+func runInit() error {
+	scanner := bufio.NewScanner(os.Stdin)
+
+	fmt.Println("🔧 Gojira設定セットアップ")
+	fmt.Println("=======================")
+	fmt.Println()
+
+	// 1. JIRAサーバーURLを入力
+	fmt.Print("JIRAサーバーのURL (例: https://your-domain.atlassian.net): ")
+	if !scanner.Scan() {
+		return fmt.Errorf("入力エラー")
+	}
+	serverURL := strings.TrimSpace(scanner.Text())
+	if serverURL == "" {
+		return fmt.Errorf("JIRAサーバーURLは必須です")
+	}
+
+	// 2. ログインメールを入力
+	fmt.Print("ログインメールアドレス: ")
+	if !scanner.Scan() {
+		return fmt.Errorf("入力エラー")
+	}
+	loginEmail := strings.TrimSpace(scanner.Text())
+	if loginEmail == "" {
+		return fmt.Errorf("ログインメールアドレスは必須です")
+	}
+
+	// 3. APIトークンの確認
+	apiToken := os.Getenv("JIRA_API_TOKEN")
+	if apiToken == "" {
+		fmt.Println()
+		fmt.Println("⚠️  JIRA_API_TOKEN環境変数が設定されていません。")
+		fmt.Println("   Atlassian API Token (https://id.atlassian.com/manage-profile/security/api-tokens) を取得して、")
+		fmt.Println("   環境変数 JIRA_API_TOKEN に設定してください。")
+		fmt.Println()
+		fmt.Print("続行しますか？ (y/N): ")
+		if !scanner.Scan() {
+			return fmt.Errorf("入力エラー")
+		}
+		if strings.ToLower(strings.TrimSpace(scanner.Text())) != "y" {
+			return fmt.Errorf("セットアップを中止しました")
+		}
+		apiToken = "dummy_token" // 一時的なダミートークン
+	}
+
+	// 4. プロジェクト一覧を取得
+	fmt.Println()
+	fmt.Println("📋 プロジェクト一覧を取得中...")
+	
+	projects, err := fetchProjects(serverURL, loginEmail, apiToken)
+	if err != nil {
+		return fmt.Errorf("プロジェクト一覧の取得に失敗しました: %v", err)
+	}
+
+	if len(projects) == 0 {
+		return fmt.Errorf("アクセス可能なプロジェクトが見つかりません")
+	}
+
+	// 5. プロジェクトを選択
+	fmt.Println()
+	fmt.Println("📋 利用可能なプロジェクト:")
+	for i, project := range projects {
+		fmt.Printf("  %d) %s (%s)\n", i+1, project.Name, project.Key)
+	}
+
+	var selectedProject *JiraProject
+	for {
+		fmt.Printf("プロジェクトを選択してください (1-%d): ", len(projects))
+		if !scanner.Scan() {
+			return fmt.Errorf("入力エラー")
+		}
+		
+		choice, err := strconv.Atoi(strings.TrimSpace(scanner.Text()))
+		if err != nil || choice < 1 || choice > len(projects) {
+			fmt.Println("無効な選択です。再入力してください。")
+			continue
+		}
+		
+		selectedProject = &projects[choice-1]
+		break
+	}
+
+	// 6. ボード一覧を取得
+	fmt.Println()
+	fmt.Printf("📊 プロジェクト '%s' のボード一覧を取得中...\n", selectedProject.Name)
+	
+	boards, err := fetchBoards(serverURL, loginEmail, apiToken, selectedProject.Key)
+	if err != nil {
+		return fmt.Errorf("ボード一覧の取得に失敗しました: %v", err)
+	}
+
+	var selectedBoard *JiraBoard
+	if len(boards) == 0 {
+		fmt.Println("⚠️  利用可能なボードが見つかりませんでした。デフォルト設定を使用します。")
+		selectedBoard = &JiraBoard{
+			ID:   0,
+			Name: "Default",
+			Type: "scrum",
+		}
+	} else {
+		// 7. ボードを選択
+		fmt.Println()
+		fmt.Println("📊 利用可能なボード:")
+		for i, board := range boards {
+			fmt.Printf("  %d) %s (ID: %d, Type: %s)\n", i+1, board.Name, board.ID, board.Type)
+		}
+
+		for {
+			fmt.Printf("ボードを選択してください (1-%d): ", len(boards))
+			if !scanner.Scan() {
+				return fmt.Errorf("入力エラー")
+			}
+			
+			choice, err := strconv.Atoi(strings.TrimSpace(scanner.Text()))
+			if err != nil || choice < 1 || choice > len(boards) {
+				fmt.Println("無効な選択です。再入力してください。")
+				continue
+			}
+			
+			selectedBoard = &boards[choice-1]
+			break
+		}
+	}
+
+	// 8. 設定ファイルを作成
+	config := InitConfig{
+		AuthType: "basic",
+		Login:    loginEmail,
+		Server:   serverURL,
+		Project: struct {
+			Key  string `yaml:"key"`
+			Type string `yaml:"type"`
+		}{
+			Key:  selectedProject.Key,
+			Type: "software",
+		},
+		Board: struct {
+			ID   int    `yaml:"id"`
+			Name string `yaml:"name"`
+			Type string `yaml:"type"`
+		}{
+			ID:   selectedBoard.ID,
+			Name: selectedBoard.Name,
+			Type: selectedBoard.Type,
+		},
+		JQL:      fmt.Sprintf("project = %s", selectedProject.Key),
+		Timezone: "Asia/Tokyo",
+	}
+
+	// 9. 設定ファイルを保存
+	configDir := filepath.Join(os.Getenv("HOME"), ".config", "gojira")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return fmt.Errorf("設定ディレクトリの作成に失敗しました: %v", err)
+	}
+
+	configFile := filepath.Join(configDir, "config.yml")
+	data, err := yaml.Marshal(&config)
+	if err != nil {
+		return fmt.Errorf("設定ファイルのマーシャルに失敗しました: %v", err)
+	}
+
+	if err := os.WriteFile(configFile, data, 0644); err != nil {
+		return fmt.Errorf("設定ファイルの書き込みに失敗しました: %v", err)
+	}
+
+	fmt.Println()
+	fmt.Println("✅ 設定が完了しました！")
+	fmt.Printf("   設定ファイル: %s\n", configFile)
+	fmt.Printf("   プロジェクト: %s (%s)\n", selectedProject.Name, selectedProject.Key)
+	fmt.Printf("   ボード: %s (ID: %d)\n", selectedBoard.Name, selectedBoard.ID)
+	fmt.Println()
+	fmt.Println("💡 使用方法:")
+	fmt.Println("   gojira fetch  # チケットを取得")
+	fmt.Println("   gojira push   # チケットを更新")
+	fmt.Println()
+
+	return nil
+}
+
+func fetchProjects(serverURL, email, apiToken string) ([]JiraProject, error) {
+	url := serverURL + "/rest/api/3/project"
+	
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	
+	req.SetBasicAuth(email, apiToken)
+	req.Header.Set("Accept", "application/json")
+	
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("JIRA API request failed: %s", resp.Status)
+	}
+	
+	var projects []JiraProject
+	if err := json.NewDecoder(resp.Body).Decode(&projects); err != nil {
+		return nil, err
+	}
+	
+	return projects, nil
+}
+
+func fetchBoards(serverURL, email, apiToken, projectKey string) ([]JiraBoard, error) {
+	url := serverURL + "/rest/agile/1.0/board?projectKeyOrId=" + projectKey
+	
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	
+	req.SetBasicAuth(email, apiToken)
+	req.Header.Set("Accept", "application/json")
+	
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("JIRA API request failed: %s", resp.Status)
+	}
+	
+	var response struct {
+		Values []JiraBoard `json:"values"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, err
+	}
+	
+	return response.Values, nil
+}
