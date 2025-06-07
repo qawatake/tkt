@@ -99,32 +99,32 @@ func (c *Client) FetchIssue(key string) (*ticket.Ticket, error) {
 	if err := c.validateProject(); err != nil {
 		return nil, err
 	}
-	result, err := c.Get(context.Background(), key)
+	issue, err := c.Get(context.Background(), key)
 	if err != nil {
 		return nil, err
 	}
-	return convert(result.Issues[0])
+	return convert(issue)
 }
 
 // FetchIssues はJQLに基づいてJIRAチケットを取得します
-func (c *Client) FetchIssues() ([]ticket.Ticket, error) {
+func (c *Client) FetchIssues() ([]*ticket.Ticket, error) {
 	// まずプロジェクトが存在するか確認
 	if err := c.validateProject(); err != nil {
 		return nil, err
 	}
 
 	// JQLクエリを作成
-	jql := c.config.JQL
+	jql := JQL(c.config.JQL)
 	if jql == "" {
-		jql = fmt.Sprintf("project = %s", c.config.Project.Key)
+		jql = JQL(fmt.Sprintf("project = %s", c.config.Project.Key))
 	}
 
 	const limitRequestCount = 100 // 安全のための上限
 	const maxResults = 100        // これが上限っぽい。(500にしても100でcapされた。)
-	issues := make([]*jira.Issue, 0, 1000)
+	issues := make([]*Issue, 0, 1000)
 	var offset uint = 0
 	for range limitRequestCount {
-		result, err := c.jiraCLIClient.Search(jql, offset, maxResults)
+		result, err := c.Search(context.Background(), JQL(jql), int(offset), maxResults)
 		if err != nil {
 			return nil, err
 		}
@@ -135,11 +135,12 @@ func (c *Client) FetchIssues() ([]ticket.Ticket, error) {
 		}
 	}
 
-	fmt.Printf("JQLクエリ: %s\n", jql)
-
-	tickets := make([]ticket.Ticket, 0, len(issues))
+	tickets := make([]*ticket.Ticket, 0, len(issues))
 	for _, issue := range issues {
-		ticket := convertJiraCLIIssueToTicket(issue)
+		ticket, err := convert(issue)
+		if err != nil {
+			return nil, err
+		}
 		tickets = append(tickets, ticket)
 	}
 
@@ -178,59 +179,6 @@ func convert(issue *Issue) (*ticket.Ticket, error) {
 	ticket.CreatedAt = createdAt
 	ticket.UpdatedAt = updatedAt
 	return ticket, nil
-}
-
-func convertJiraCLIIssueToTicket(issue *jira.Issue) ticket.Ticket {
-	ticket := ticket.Ticket{
-		Key:    issue.Key,
-		Title:  issue.Fields.Summary,
-		Type:   strings.ToLower(issue.Fields.IssueType.Name),
-		Status: issue.Fields.Status.Name,
-	}
-
-	adfBody := ifaceToADF(issue.Fields.Description)
-	ticket.Body = adf.NewTranslator(adfBody, adf.NewJiraMarkdownTranslator()).Translate()
-
-	if issue.Fields.Parent != nil {
-		ticket.ParentKey = issue.Fields.Parent.Key
-	}
-
-	if issue.Fields.Assignee.Name != "" {
-		ticket.Assignee = issue.Fields.Assignee.Name
-	}
-
-	if issue.Fields.Reporter.Name != "" {
-		ticket.Reporter = issue.Fields.Reporter.Name
-	}
-
-	// Parse timestamps
-	if createdTime, err := time.Parse(time.RFC3339, issue.Fields.Created); err == nil {
-		ticket.CreatedAt = createdTime
-	}
-
-	if updatedTime, err := time.Parse(time.RFC3339, issue.Fields.Updated); err == nil {
-		ticket.UpdatedAt = updatedTime
-	}
-
-	return ticket
-}
-
-func ifaceToADF(v interface{}) *adf.ADF {
-	if v == nil {
-		return nil
-	}
-
-	var doc *adf.ADF
-
-	js, err := json.Marshal(v)
-	if err != nil {
-		return nil // ignore invalid data
-	}
-	if err = json.Unmarshal(js, &doc); err != nil {
-		return nil // ignore invalid data
-	}
-
-	return doc
 }
 
 // validateProject はプロジェクトが存在するか確認します
@@ -369,17 +317,19 @@ func (f *IssueFields) UpdatedAt() (_ time.Time, err error) {
 	return updatedAt, nil
 }
 
-func (c *Client) Get(ctx context.Context, key string) (_ *SearchResult, err error) {
+type JQL string
+
+func (c *Client) Search(ctx context.Context, jql JQL, startAt, maxResults int) (_ *SearchResult, err error) {
 	defer derrors.Wrap(&err)
 	type Request struct {
-		JQL        string   `json:"jql"`
+		JQL        JQL      `json:"jql"`
 		Fields     []string `json:"fields"`
 		StartAt    int      `json:"startAt"`
 		MaxResults int      `json:"maxResults"`
 	}
 
 	reqBody := Request{
-		JQL: fmt.Sprintf("key = %s", key),
+		JQL: jql,
 		Fields: []string{
 			"issuetype",
 			"timeoriginalestimate",
@@ -394,8 +344,8 @@ func (c *Client) Get(ctx context.Context, key string) (_ *SearchResult, err erro
 			"reporter",
 			"parent",
 		},
-		StartAt:    0,
-		MaxResults: 1,
+		StartAt:    startAt,
+		MaxResults: maxResults,
 	}
 
 	jsonBody, err := json.Marshal(reqBody)
@@ -429,4 +379,17 @@ func (c *Client) Get(ctx context.Context, key string) (_ *SearchResult, err erro
 	}
 
 	return &result, nil
+}
+
+func (c *Client) Get(ctx context.Context, key string) (_ *Issue, err error) {
+	defer derrors.Wrap(&err)
+	jql := JQL(fmt.Sprintf(`key = "%s"`, key))
+	result, err := c.Search(ctx, jql, 0, 1)
+	if err != nil {
+		return nil, err
+	}
+	if len(result.Issues) == 0 {
+		return nil, fmt.Errorf("JIRAチケットが見つかりません: %s", key)
+	}
+	return result.Issues[0], nil
 }
