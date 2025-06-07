@@ -171,12 +171,6 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 					continue
 				}
 
-				// キャッシュを更新
-				_, err = localTicket.SaveToFile(cacheDir)
-				if err != nil {
-					fmt.Printf("警告: キャッシュの更新に失敗しました: %v\n", err)
-				}
-
 				fmt.Printf("更新完了: %s\n", localTicket.Key)
 				updatedCount++
 			}

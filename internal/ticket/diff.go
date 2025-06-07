@@ -62,7 +62,7 @@ func CompareDirs(localDir, cacheDir string) ([]DiffResult, error) {
 		// 差分を検出
 		dmp := diffmatchpatch.New()
 		dmp.DiffTimeout = 1 * time.Second // タイムアウトを設定
-		fromRunes, toRunes, runesToLines := dmp.DiffLinesToRunes(cacheTicket.ToMarkdown(), localTicket.ToMarkdown())
+		fromRunes, toRunes, runesToLines := dmp.DiffLinesToRunes(format(cacheTicket.ToMarkdown()), format(localTicket.ToMarkdown()))
 		diffs := dmp.DiffCharsToLines(dmp.DiffMainRunes(fromRunes, toRunes, false), runesToLines)
 		chunks := make([]diff.Chunk, 0, len(diffs))
 		for _, d := range diffs {
@@ -84,7 +84,7 @@ func CompareDirs(localDir, cacheDir string) ([]DiffResult, error) {
 		from := &diffFile{
 			fileMode: fileMode,
 			relPath:  fileName,
-			hash:     plumbing.ComputeHash(plumbing.BlobObject, []byte(cacheTicket.Body)),
+			hash:     plumbing.ComputeHash(plumbing.BlobObject, []byte(format(cacheTicket.ToMarkdown()))),
 		}
 		info, err = os.Stat(localFile)
 		if err != nil {
@@ -97,7 +97,7 @@ func CompareDirs(localDir, cacheDir string) ([]DiffResult, error) {
 		to := &diffFile{
 			fileMode: fileMode,
 			relPath:  fileName,
-			hash:     plumbing.ComputeHash(plumbing.BlobObject, []byte(localTicket.Body)),
+			hash:     plumbing.ComputeHash(plumbing.BlobObject, []byte(format(localTicket.ToMarkdown()))),
 		}
 
 		patch := gitDiffPatch{
@@ -133,6 +133,12 @@ func CompareDirs(localDir, cacheDir string) ([]DiffResult, error) {
 	}
 
 	return results, nil
+}
+
+// CommonMarkとして正規化しないと、パース結果が同じなのに差分があると検知されてしまいノイジーなので。
+func format(body string) string {
+	jmd := md.ToJiraMD(body) // JIRAのMarkdown形式に変換
+	return md.FromJiraMD(jmd)
 }
 
 // chezmoi diffを参考に。

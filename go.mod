@@ -3,6 +3,7 @@ module github.com/gojira/gojira
 go 1.24.3
 
 require (
+	github.com/Code-Hex/dd v1.1.0
 	github.com/andygrunwald/go-jira v1.16.0
 	github.com/ankitpokhrel/jira-cli v1.6.0
 	github.com/go-git/go-git/v5 v5.16.0
