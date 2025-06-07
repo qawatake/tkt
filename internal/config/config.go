@@ -10,53 +10,52 @@ import (
 
 // Config は設定ファイルの構造体です
 type Config struct {
-	AuthType string `mapstructure:"auth_type"`
-	Login    string `mapstructure:"login"`
-	Server   string `mapstructure:"server"`
+	AuthType string `mapstructure:"auth_type" yaml:"auth_type"`
+	Login    string `mapstructure:"login" yaml:"login"`
+	Server   string `mapstructure:"server" yaml:"server"`
 	Project  struct {
-		Key  string `mapstructure:"key"`
-		Type string `mapstructure:"type"`
-	} `mapstructure:"project"`
+		Key  string `mapstructure:"key" yaml:"key"`
+		Type string `mapstructure:"type" yaml:"type"`
+	} `mapstructure:"project" yaml:"project"`
 	Board struct {
-		ID   int    `mapstructure:"id"`
-		Name string `mapstructure:"name"`
-		Type string `mapstructure:"type"`
-	} `mapstructure:"board"`
+		ID   int    `mapstructure:"id" yaml:"id"`
+		Name string `mapstructure:"name" yaml:"name"`
+		Type string `mapstructure:"type" yaml:"type"`
+	} `mapstructure:"board" yaml:"board"`
 	Epic struct {
-		Name string `mapstructure:"name"`
-		Link string `mapstructure:"link"`
-	} `mapstructure:"epic"`
+		Name string `mapstructure:"name" yaml:"name"`
+		Link string `mapstructure:"link" yaml:"link"`
+	} `mapstructure:"epic" yaml:"epic"`
 	Issue struct {
 		Fields struct {
 			Custom []struct {
-				Name   string `mapstructure:"name"`
-				Key    string `mapstructure:"key"`
+				Name   string `mapstructure:"name" yaml:"name"`
+				Key    string `mapstructure:"key" yaml:"key"`
 				Schema struct {
-					Datatype string `mapstructure:"datatype"`
-					Items    string `mapstructure:"items"`
-				} `mapstructure:"schema"`
-			} `mapstructure:"custom"`
-		} `mapstructure:"fields"`
+					Datatype string `mapstructure:"datatype" yaml:"datatype"`
+					Items    string `mapstructure:"items" yaml:"items"`
+				} `mapstructure:"schema" yaml:"schema"`
+			} `mapstructure:"custom" yaml:"custom"`
+		} `mapstructure:"fields" yaml:"fields"`
 		Types []struct {
-			ID      string `mapstructure:"id"`
-			Name    string `mapstructure:"name"`
-			Handle  string `mapstructure:"handle"`
-			Subtask bool   `mapstructure:"subtask"`
-		} `mapstructure:"types"`
-	} `mapstructure:"issue"`
-	JQL      string `mapstructure:"jql"`
-	Timezone string `mapstructure:"timezone"`
+			ID      string `mapstructure:"id" yaml:"id"`
+			Name    string `mapstructure:"name" yaml:"name"`
+			Handle  string `mapstructure:"handle" yaml:"handle"`
+			Subtask bool   `mapstructure:"subtask" yaml:"subtask"`
+		} `mapstructure:"types" yaml:"types"`
+	} `mapstructure:"issue" yaml:"issue"`
+	JQL      string `mapstructure:"jql" yaml:"jql"`
+	Timezone string `mapstructure:"timezone" yaml:"timezone"`
 }
 
 // LoadConfig は設定ファイルを読み込みます
 func LoadConfig() (*Config, error) {
-	// 設定ファイルのパス
-	configDir := filepath.Join(os.Getenv("HOME"), ".config", "gojira")
-	configFile := filepath.Join(configDir, "config.yml")
+	// 設定ファイルのパス (カレントディレクトリのticket.yml)
+	configFile := "ticket.yml"
 
 	// 設定ファイルが存在するか確認
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
-		return nil, fmt.Errorf("設定ファイルが見つかりません: %s", configFile)
+		return nil, fmt.Errorf("設定ファイルが見つかりません: %s\n'gojira init'コマンドで設定ファイルを作成してください", configFile)
 	}
 
 	// Viperの設定

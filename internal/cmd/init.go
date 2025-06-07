@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gojira/gojira/internal/config"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -27,23 +28,6 @@ JIRAサーバーのURL、ログインメール、プロジェクト、ボード�
 
 func init() {
 	rootCmd.AddCommand(initCmd)
-}
-
-type InitConfig struct {
-	AuthType string `yaml:"auth_type"`
-	Login    string `yaml:"login"`
-	Server   string `yaml:"server"`
-	Project  struct {
-		Key  string `yaml:"key"`
-		Type string `yaml:"type"`
-	} `yaml:"project"`
-	Board struct {
-		ID   int    `yaml:"id"`
-		Name string `yaml:"name"`
-		Type string `yaml:"type"`
-	} `yaml:"board"`
-	JQL      string `yaml:"jql"`
-	Timezone string `yaml:"timezone"`
 }
 
 type JiraProject struct {
@@ -196,33 +180,26 @@ func runInit() error {
 	}
 
 	// 9. 設定ファイルを作成
-	config := InitConfig{
+	cfg := &config.Config{
 		AuthType: "basic",
 		Login:    loginEmail,
 		Server:   serverURL,
-		Project: struct {
-			Key  string `yaml:"key"`
-			Type string `yaml:"type"`
-		}{
-			Key:  selectedProject.Key,
-			Type: "software",
-		},
-		Board: struct {
-			ID   int    `yaml:"id"`
-			Name string `yaml:"name"`
-			Type string `yaml:"type"`
-		}{
-			ID:   selectedBoard.ID,
-			Name: selectedBoard.Name,
-			Type: selectedBoard.Type,
-		},
 		JQL:      jqlInput,
 		Timezone: "Asia/Tokyo",
 	}
 
+	// Project情報を設定
+	cfg.Project.Key = selectedProject.Key
+	cfg.Project.Type = "software"
+
+	// Board情報を設定
+	cfg.Board.ID = selectedBoard.ID
+	cfg.Board.Name = selectedBoard.Name
+	cfg.Board.Type = selectedBoard.Type
+
 	// 9. 設定ファイルを保存 (ticket.ymlをカレントディレクトリに作成)
 	configFile := "ticket.yml"
-	data, err := yaml.Marshal(&config)
+	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("設定ファイルのマーシャルに失敗しました: %v", err)
 	}
