@@ -6,6 +6,7 @@ import (
 	"github.com/gojira/gojira/internal/config"
 	"github.com/gojira/gojira/internal/jira"
 	"github.com/gojira/gojira/internal/ticket"
+	"github.com/gojira/gojira/internal/verbose"
 	"github.com/gojira/gojira/pkg/utils"
 	"github.com/spf13/cobra"
 )
@@ -22,7 +23,7 @@ var pushCmd = &cobra.Command{
 ローカルにfetchしたものと差分があるファイルだけ更新します。
 keyがないものはremoteにないチケットのため、JIRAにチケットを作成したあとにファイルのkeyを更新します。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Printf("ローカルの編集差分を %s からJIRAに適用します\n", pushDir)
+		verbose.Printf("ローカルの編集差分を %s からJIRAに適用します\n", pushDir)
 
 		// 1. 設定ファイルを読み込む
 		cfg, err := config.LoadConfig()
@@ -37,14 +38,14 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 		}
 
 		// 3. JIRAに接続してリモートのチケットをキャッシュにfetch
-		fmt.Println("リモートのJIRAチケットをキャッシュに取得中...")
+		verbose.Println("リモートのJIRAチケットをキャッシュに取得中...")
 		jiraClient, err := jira.NewClient(cfg)
 		if err != nil {
 			return fmt.Errorf("JIRAクライアントの作成に失敗しました: %v", err)
 		}
 
 		// 4. ローカルとキャッシュの差分を検出
-		fmt.Println("ローカルとリモートの差分を検出中...")
+		verbose.Println("ローカルとリモートの差分を検出中...")
 		diffs, err := ticket.CompareDirs(pushDir, cacheDir)
 		if err != nil {
 			return fmt.Errorf("差分の検出に失敗しました: %v", err)
@@ -59,7 +60,7 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 		}
 
 		if len(changedTickets) == 0 {
-			fmt.Println("差分はありません")
+			verbose.Println("差分はありません")
 			return nil
 		}
 
@@ -94,14 +95,14 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 			}
 		}
 
-		fmt.Printf("%d 件のチケットに差分があります\n", len(changedTickets))
+		verbose.Printf("%d 件のチケットに差分があります\n", len(changedTickets))
 
 		// 5. 差分をJIRAに適用
 		if dryRun {
-			fmt.Println("ドライラン: 実際には適用されません")
+			verbose.Println("ドライラン: 実際には適用されません")
 			for _, diff := range changedTickets {
-				fmt.Printf("\n--- %s ---\n", diff.Key)
-				fmt.Println(diff.DiffText)
+				verbose.Printf("\n--- %s ---\n", diff.Key)
+				verbose.Println(diff.DiffText)
 			}
 			return nil
 		}
@@ -129,13 +130,13 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 			// ローカルのチケットを読み込み
 			localTicket, err := ticket.FromFile(diff.FilePath)
 			if err != nil {
-				fmt.Printf("警告: チケット %s の読み込みに失敗しました: %v\n", diff.Key, err)
+				verbose.Printf("警告: チケット %s の読み込みに失敗しました: %v\n", diff.Key, err)
 				continue
 			}
 
 			if localTicket.Key == "" {
 				// 新規チケット作成
-				fmt.Printf("新規チケットを作成中: %s\n", localTicket.Title)
+				verbose.Printf("新規チケットを作成中: %s\n", localTicket.Title)
 
 				// JIRAにチケットを作成
 				newIssue, err := jiraClient.CreateIssue(localTicket.Type, localTicket.Title, localTicket.Body, localTicket.ParentKey)
@@ -158,11 +159,11 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 					fmt.Printf("警告: キャッシュの更新に失敗しました: %v\n", err)
 				}
 
-				fmt.Printf("作成完了: %s\n", newIssue.Key)
+				verbose.Printf("作成完了: %s\n", newIssue.Key)
 				createdCount++
 			} else {
 				// 既存チケット更新
-				fmt.Printf("チケットを更新中: %s\n", localTicket.Key)
+				verbose.Printf("チケットを更新中: %s\n", localTicket.Key)
 
 				// JIRAを更新
 				err := jiraClient.UpdateIssue(*localTicket)
@@ -171,12 +172,12 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 					continue
 				}
 
-				fmt.Printf("更新完了: %s\n", localTicket.Key)
+				verbose.Printf("更新完了: %s\n", localTicket.Key)
 				updatedCount++
 			}
 		}
 
-		fmt.Printf("\n完了: %d 件作成, %d 件更新\n", createdCount, updatedCount)
+		verbose.Printf("\n完了: %d 件作成, %d 件更新\n", createdCount, updatedCount)
 		return nil
 	},
 }

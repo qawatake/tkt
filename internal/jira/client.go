@@ -18,6 +18,7 @@ import (
 	"github.com/gojira/gojira/internal/derrors"
 	"github.com/gojira/gojira/internal/md"
 	"github.com/gojira/gojira/internal/ticket"
+	"github.com/gojira/gojira/internal/verbose"
 	"github.com/k1LoW/errors"
 	"github.com/sourcegraph/conc/pool"
 )
@@ -150,7 +151,7 @@ func (c *Client) FetchIssues() (_ []*ticket.Ticket, err error) {
 			}
 			requestCount++
 			p.Go(func(ctx context.Context) ([]*Issue, error) {
-				fmt.Println(startAt, maxResults, jql)
+				verbose.Println(startAt, maxResults, jql)
 				// ここでJQLを使ってJIRA APIに問い合わせる。
 				result, err := c.Search(ctx, jql, startAt, maxResults)
 				if err != nil {
@@ -225,7 +226,7 @@ func (c *Client) validateProject() error {
 		return fmt.Errorf("プロジェクト '%s' が見つかりません。設定ファイルのproject.keyを確認してください: %v", c.config.Project.Key, err)
 	}
 
-	fmt.Printf("プロジェクト確認: %s (%s)\n", project.Name, project.Key)
+	verbose.Printf("プロジェクト確認: %s (%s)\n", project.Name, project.Key)
 	return nil
 }
 

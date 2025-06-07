@@ -10,6 +10,7 @@ import (
 
 	"github.com/gojira/gojira/internal/config"
 	"github.com/gojira/gojira/internal/ticket"
+	"github.com/gojira/gojira/internal/verbose"
 	"github.com/spf13/cobra"
 )
 
@@ -24,7 +25,7 @@ var diffCmd = &cobra.Command{
 	Long: `ローカルで編集したJIRAチケットとリモートのJIRAチケットの差分を表示します。
 差分を計算する前に~/.cache/gojiraにリモートのチケットをfetchします。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Printf("ローカルとリモートのJIRAチケットの差分を表示します（ディレクトリ: %s, フォーマット: %s）\n", diffDir, diffFormat)
+		verbose.Printf("ローカルとリモートのJIRAチケットの差分を表示します（ディレクトリ: %s, フォーマット: %s）\n", diffDir, diffFormat)
 
 		// 2. キャッシュディレクトリを確保
 		cacheDir, err := config.EnsureCacheDir()
@@ -33,7 +34,7 @@ var diffCmd = &cobra.Command{
 		}
 
 		// 4. ローカルとキャッシュの差分を検出
-		fmt.Printf("ローカルディレクトリ %s とキャッシュの差分を検出中...\n", diffDir)
+		verbose.Printf("ローカルディレクトリ %s とキャッシュの差分を検出中...\n", diffDir)
 		diffs, err := ticket.CompareDirs(diffDir, cacheDir)
 		if err != nil {
 			return fmt.Errorf("差分の検出に失敗しました: %v", err)

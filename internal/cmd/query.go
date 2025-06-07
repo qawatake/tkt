@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gojira/gojira/internal/verbose"
 	"github.com/gojira/gojira/pkg/markdown"
 	"github.com/spf13/cobra"
 )
@@ -45,20 +46,20 @@ REPLを終了すると一時ファイルは自動的に削除されます。`,
 			return fmt.Errorf("マークダウンファイルが見つかりません")
 		}
 
-		fmt.Printf("%d 件のマークダウンファイルを発見しました\n", len(markdownFiles))
+		verbose.Printf("%d 件のマークダウンファイルを発見しました\n", len(markdownFiles))
 
 		// 2. フロントマターを抽出してJSONに変換
 		var allFrontmatters []map[string]interface{}
 		for _, file := range markdownFiles {
 			content, err := os.ReadFile(file)
 			if err != nil {
-				fmt.Printf("警告: %s の読み込みに失敗しました: %v\n", file, err)
+				verbose.Printf("警告: %s の読み込みに失敗しました: %v\n", file, err)
 				continue
 			}
 
 			frontmatter, _, err := markdown.ParseFrontMatter(string(content))
 			if err != nil {
-				fmt.Printf("警告: %s のフロントマターパースに失敗しました: %v\n", file, err)
+				verbose.Printf("警告: %s のフロントマターパースに失敗しました: %v\n", file, err)
 				continue
 			}
 
@@ -73,7 +74,7 @@ REPLを終了すると一時ファイルは自動的に削除されます。`,
 			return fmt.Errorf("有効なフロントマターが見つかりません")
 		}
 
-		fmt.Printf("%d 件のフロントマターを抽出しました\n", len(allFrontmatters))
+		verbose.Printf("%d 件のフロントマターを抽出しました\n", len(allFrontmatters))
 
 		// 3. 一時JSONファイルを作成
 		tempFile := filepath.Join("/tmp", fmt.Sprintf("gojira_query_%d.json", time.Now().Unix()))
@@ -87,13 +88,13 @@ REPLを終了すると一時ファイルは自動的に削除されます。`,
 			return fmt.Errorf("一時ファイルの作成に失敗しました: %v", err)
 		}
 
-		fmt.Printf("一時ファイルを作成しました: %s\n", tempFile)
+		verbose.Printf("一時ファイルを作成しました: %s\n", tempFile)
 
 		// 4. DuckDBのREPLを起動
-		fmt.Println("DuckDBのREPLを起動中...")
-		fmt.Printf("データベースのテーブル名: tickets\n")
-		fmt.Printf("使用例: SELECT * FROM tickets WHERE status = 'To Do';\n")
-		fmt.Println("終了するには .exit を入力してください")
+		verbose.Println("DuckDBのREPLを起動中...")
+		verbose.Printf("データベースのテーブル名: tickets\n")
+		verbose.Printf("使用例: SELECT * FROM tickets WHERE status = 'To Do';\n")
+		verbose.Println("終了するには .exit を入力してください")
 
 		// 初期化SQLファイルを作成
 		initSQL := fmt.Sprintf("CREATE TABLE tickets AS SELECT * FROM read_json_auto('%s');", tempFile)
@@ -118,13 +119,13 @@ REPLを終了すると一時ファイルは自動的に削除されます。`,
 
 		// 5. 一時ファイルを削除
 		os.Remove(tempFile)
-		fmt.Printf("\n一時ファイルを削除しました: %s\n", tempFile)
+		verbose.Printf("\n一時ファイルを削除しました: %s\n", tempFile)
 
 		// DuckDBの正常終了（ユーザーが.exitで終了）は成功として扱う
 		if err != nil {
 			if exitError, ok := err.(*exec.ExitError); ok {
 				// 終了コード0以外でも、ユーザーが意図的に終了した場合は成功とする
-				fmt.Printf("DuckDBが終了しました (exit code: %d)\n", exitError.ExitCode())
+				verbose.Printf("DuckDBが終了しました (exit code: %d)\n", exitError.ExitCode())
 			} else {
 				return fmt.Errorf("DuckDBの実行に失敗しました: %v", err)
 			}

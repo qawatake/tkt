@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/gojira/gojira/internal/config"
+	"github.com/gojira/gojira/internal/verbose"
 	"github.com/gojira/gojira/pkg/utils"
 	"github.com/spf13/cobra"
 )
@@ -19,7 +20,7 @@ var mergeCmd = &cobra.Command{
 	Use:   "merge",
 	Short: "キャッシュにあるリモートのコピーでローカルのJIRAチケットを上書きします。",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Printf("JIRAチケットを %s にマージします\n", outputDir)
+		verbose.Printf("JIRAチケットを %s にマージします\n", outputDir)
 
 		// 出力ディレクトリを確保
 		if err := utils.EnsureDir(outputDir); err != nil {
@@ -45,17 +46,17 @@ var mergeCmd = &cobra.Command{
 
 			// 既存ファイルがあり、上書きフラグが立っていない場合はスキップ
 			if _, err := os.Stat(dstPath); err == nil && !forceFlag {
-				fmt.Printf("スキップ: %s (既存ファイル)\n", dstPath)
+				verbose.Printf("スキップ: %s (既存ファイル)\n", dstPath)
 				continue
 			}
 			// ファイルをコピー
 			if err := copyFile(srcPath, dstPath); err != nil {
 				return fmt.Errorf("ファイルのコピーに失敗しました: %v", err)
 			}
-			fmt.Printf("コピー: %s -> %s\n", srcPath, dstPath)
+			verbose.Printf("コピー: %s -> %s\n", srcPath, dstPath)
 		}
 
-		fmt.Printf("キャッシュからローカルディレクトリへのマージが完了しました\n")
+		verbose.Printf("キャッシュからローカルディレクトリへのマージが完了しました\n")
 		return nil
 	},
 }

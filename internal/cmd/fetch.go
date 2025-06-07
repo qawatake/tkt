@@ -5,6 +5,7 @@ import (
 
 	"github.com/gojira/gojira/internal/config"
 	"github.com/gojira/gojira/internal/jira"
+	"github.com/gojira/gojira/internal/verbose"
 	"github.com/spf13/cobra"
 )
 
@@ -26,11 +27,11 @@ var fetchCmd = &cobra.Command{
 		}
 
 		// 設定情報をデバッグ表示
-		fmt.Printf("JIRA Server: %s\n", cfg.Server)
-		fmt.Printf("Project Key: %s\n", cfg.Project.Key)
-		fmt.Printf("Auth Type: %s\n", cfg.AuthType)
+		verbose.Printf("JIRA Server: %s\n", cfg.Server)
+		verbose.Printf("Project Key: %s\n", cfg.Project.Key)
+		verbose.Printf("Auth Type: %s\n", cfg.AuthType)
 		if cfg.JQL != "" {
-			fmt.Printf("Custom JQL: %s\n", cfg.JQL)
+			verbose.Printf("Custom JQL: %s\n", cfg.JQL)
 		}
 
 		// 2. JIRAに接続
@@ -40,13 +41,13 @@ var fetchCmd = &cobra.Command{
 		}
 
 		// 3. チケットを取得
-		fmt.Println("JIRAからチケットを取得中...")
+		verbose.Println("JIRAからチケットを取得中...")
 		tickets, err := jiraClient.FetchIssues()
 		if err != nil {
 			return fmt.Errorf("チケットの取得に失敗しました: %v", err)
 		}
 
-		fmt.Printf("%d 件のチケットを取得しました\n", len(tickets))
+		verbose.Printf("%d 件のチケットを取得しました\n", len(tickets))
 
 		// 5. キャッシュディレクトリを確保
 		cacheDir, err := config.EnsureCacheDir()
@@ -62,14 +63,14 @@ var fetchCmd = &cobra.Command{
 			// キャッシュディレクトリに保存
 			savedCachePath, err := ticket.SaveToFile(cacheDir)
 			if err != nil {
-				fmt.Printf("警告: チケット %s のキャッシュ保存に失敗しました: %v\n", ticket.Key, err)
+				verbose.Printf("警告: チケット %s のキャッシュ保存に失敗しました: %v\n", ticket.Key, err)
 			}
 
-			fmt.Printf("保存: %s -> %s\n", ticket.Key, savedCachePath)
+			verbose.Printf("保存: %s -> %s\n", ticket.Key, savedCachePath)
 			savedCount++
 		}
 
-		fmt.Printf("\n%d 件のチケットを保存しました\n", savedCount)
+		verbose.Printf("\n%d 件のチケットを保存しました\n", savedCount)
 		return nil
 	},
 }
