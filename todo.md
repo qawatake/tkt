@@ -11,9 +11,13 @@
 - [x] pushするときに、変更対象のファイルだけfetchしてきて内容を比較する
 - [x] pushするときに、差分があったらdiffを表示して、pushするか確認する。
 - [x] diffの書式改善。
-- [ ] 差分がないのにあると認識される。(pushしてもdiffが残る。)
+- [x] 差分がないのにあると認識される。(pushしてもdiffが残る。)
+  - item listの下に空行があるかないかjiraは気にする。
+  - のに、fetchするとその空行がなくなる。
+  - ので、adf→mdがおかしい。
 - [ ] fetchのパフォーマンス改善。
 - [ ] diffのpagerを改善。
+- [ ] 複数行の箇条書き
 - [ ] コードブロックで言語がちゃんと読み込まれない。https://github.com/kentaro-m/blackfriday-confluence/tree/master を修正すればいい。
 - [ ] チケット作成がうまくいかない。typeの翻訳がうまくいってないっぽい。
 - [ ] チケット削除。
