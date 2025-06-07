@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -20,7 +19,7 @@ var initCmd = &cobra.Command{
 	Short: "インタラクティブに設定ファイルを作成",
 	Long: `インタラクティブに設定ファイルを作成します。
 JIRAサーバーのURL、ログインメール、プロジェクト、ボードを選択して
-~/.config/gojira/config.ymlに設定を保存します。`,
+カレントディレクトリにticket.ymlを作成します。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runInit()
 	},
@@ -107,7 +106,7 @@ func runInit() error {
 	// 4. プロジェクト一覧を取得
 	fmt.Println()
 	fmt.Println("📋 プロジェクト一覧を取得中...")
-	
+
 	projects, err := fetchProjects(serverURL, loginEmail, apiToken)
 	if err != nil {
 		return fmt.Errorf("プロジェクト一覧の取得に失敗しました: %v", err)
@@ -130,13 +129,13 @@ func runInit() error {
 		if !scanner.Scan() {
 			return fmt.Errorf("入力エラー")
 		}
-		
+
 		choice, err := strconv.Atoi(strings.TrimSpace(scanner.Text()))
 		if err != nil || choice < 1 || choice > len(projects) {
 			fmt.Println("無効な選択です。再入力してください。")
 			continue
 		}
-		
+
 		selectedProject = &projects[choice-1]
 		break
 	}
@@ -144,7 +143,7 @@ func runInit() error {
 	// 6. ボード一覧を取得
 	fmt.Println()
 	fmt.Printf("📊 プロジェクト '%s' のボード一覧を取得中...\n", selectedProject.Name)
-	
+
 	boards, err := fetchBoards(serverURL, loginEmail, apiToken, selectedProject.Key)
 	if err != nil {
 		return fmt.Errorf("ボード一覧の取得に失敗しました: %v", err)
@@ -171,19 +170,32 @@ func runInit() error {
 			if !scanner.Scan() {
 				return fmt.Errorf("入力エラー")
 			}
-			
+
 			choice, err := strconv.Atoi(strings.TrimSpace(scanner.Text()))
 			if err != nil || choice < 1 || choice > len(boards) {
 				fmt.Println("無効な選択です。再入力してください。")
 				continue
 			}
-			
+
 			selectedBoard = &boards[choice-1]
 			break
 		}
 	}
 
-	// 8. 設定ファイルを作成
+	// 8. JQLを入力
+	fmt.Println()
+	defaultJQL := fmt.Sprintf("project = %s", selectedProject.Key)
+	fmt.Printf("JQL (デフォルト: %s): ", defaultJQL)
+	if !scanner.Scan() {
+		return fmt.Errorf("入力エラー")
+	}
+
+	jqlInput := strings.TrimSpace(scanner.Text())
+	if jqlInput == "" {
+		jqlInput = defaultJQL
+	}
+
+	// 9. 設定ファイルを作成
 	config := InitConfig{
 		AuthType: "basic",
 		Login:    loginEmail,
@@ -204,17 +216,12 @@ func runInit() error {
 			Name: selectedBoard.Name,
 			Type: selectedBoard.Type,
 		},
-		JQL:      fmt.Sprintf("project = %s", selectedProject.Key),
+		JQL:      jqlInput,
 		Timezone: "Asia/Tokyo",
 	}
 
-	// 9. 設定ファイルを保存
-	configDir := filepath.Join(os.Getenv("HOME"), ".config", "gojira")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		return fmt.Errorf("設定ディレクトリの作成に失敗しました: %v", err)
-	}
-
-	configFile := filepath.Join(configDir, "config.yml")
+	// 9. 設定ファイルを保存 (ticket.ymlをカレントディレクトリに作成)
+	configFile := "ticket.yml"
 	data, err := yaml.Marshal(&config)
 	if err != nil {
 		return fmt.Errorf("設定ファイルのマーシャルに失敗しました: %v", err)
@@ -226,7 +233,7 @@ func runInit() error {
 
 	fmt.Println()
 	fmt.Println("✅ 設定が完了しました！")
-	fmt.Printf("   設定ファイル: %s\n", configFile)
+	fmt.Printf("   設定ファイル: %s (カレントディレクトリ)\n", configFile)
 	fmt.Printf("   プロジェクト: %s (%s)\n", selectedProject.Name, selectedProject.Key)
 	fmt.Printf("   ボード: %s (ID: %d)\n", selectedBoard.Name, selectedBoard.ID)
 	fmt.Println()
@@ -240,62 +247,62 @@ func runInit() error {
 
 func fetchProjects(serverURL, email, apiToken string) ([]JiraProject, error) {
 	url := serverURL + "/rest/api/3/project"
-	
+
 	req, err := http.NewRequestWithContext(context.Background(), "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	req.SetBasicAuth(email, apiToken)
 	req.Header.Set("Accept", "application/json")
-	
+
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("JIRA API request failed: %s", resp.Status)
 	}
-	
+
 	var projects []JiraProject
 	if err := json.NewDecoder(resp.Body).Decode(&projects); err != nil {
 		return nil, err
 	}
-	
+
 	return projects, nil
 }
 
 func fetchBoards(serverURL, email, apiToken, projectKey string) ([]JiraBoard, error) {
 	url := serverURL + "/rest/agile/1.0/board?projectKeyOrId=" + projectKey
-	
+
 	req, err := http.NewRequestWithContext(context.Background(), "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	req.SetBasicAuth(email, apiToken)
 	req.Header.Set("Accept", "application/json")
-	
+
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("JIRA API request failed: %s", resp.Status)
 	}
-	
+
 	var response struct {
 		Values []JiraBoard `json:"values"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return nil, err
 	}
-	
+
 	return response.Values, nil
 }
