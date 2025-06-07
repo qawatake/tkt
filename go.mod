@@ -7,6 +7,7 @@ require (
 	github.com/JohannesKaufmann/html-to-markdown/v2 v2.3.3
 	github.com/andygrunwald/go-jira v1.16.0
 	github.com/ankitpokhrel/jira-cli v1.6.0
+	github.com/briandowns/spinner v1.23.2
 	github.com/go-git/go-git/v5 v5.16.0
 	github.com/k1LoW/errors v1.0.0
 	github.com/russross/blackfriday/v2 v2.1.0
@@ -20,7 +21,6 @@ require (
 
 require (
 	github.com/JohannesKaufmann/dom v0.2.0 // indirect
-	github.com/briandowns/spinner v1.23.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fatih/structs v1.1.0 // indirect

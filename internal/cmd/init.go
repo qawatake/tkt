@@ -48,7 +48,6 @@ func runInit() error {
 
 	fmt.Println("🔧 Gojira設定セットアップ")
 	fmt.Println("=======================")
-	fmt.Println()
 
 	// 1. JIRAサーバーURLを入力
 	fmt.Print("JIRAサーバーのURL (例: https://your-domain.atlassian.net): ")
@@ -73,11 +72,9 @@ func runInit() error {
 	// 3. APIトークンの確認
 	apiToken := os.Getenv("JIRA_API_TOKEN")
 	if apiToken == "" {
-		fmt.Println()
-		fmt.Println("⚠️  JIRA_API_TOKEN環境変数が設定されていません。")
+		fmt.Println("\n⚠️  JIRA_API_TOKEN環境変数が設定されていません。")
 		fmt.Println("   Atlassian API Token (https://id.atlassian.com/manage-profile/security/api-tokens) を取得して、")
 		fmt.Println("   環境変数 JIRA_API_TOKEN に設定してください。")
-		fmt.Println()
 		fmt.Print("続行しますか？ (y/N): ")
 		if !scanner.Scan() {
 			return fmt.Errorf("入力エラー")
@@ -89,7 +86,6 @@ func runInit() error {
 	}
 
 	// 4. プロジェクト一覧を取得
-	fmt.Println()
 	projects, err := ui.WithSpinnerValue("プロジェクト一覧を取得中...", func() ([]JiraProject, error) {
 		return fetchProjects(serverURL, loginEmail, apiToken)
 	})
@@ -102,8 +98,7 @@ func runInit() error {
 	}
 
 	// 5. プロジェクトを選択
-	fmt.Println()
-	fmt.Println("📋 利用可能なプロジェクト:")
+	fmt.Println("\n📋 利用可能なプロジェクト:")
 	for i, project := range projects {
 		fmt.Printf("  %d) %s (%s)\n", i+1, project.Name, project.Key)
 	}
@@ -126,7 +121,6 @@ func runInit() error {
 	}
 
 	// 6. ボード一覧を取得
-	fmt.Println()
 	boards, err := ui.WithSpinnerValue(fmt.Sprintf("プロジェクト '%s' のボード一覧を取得中...", selectedProject.Name), func() ([]JiraBoard, error) {
 		return fetchBoards(serverURL, loginEmail, apiToken, selectedProject.Key)
 	})
@@ -144,8 +138,7 @@ func runInit() error {
 		}
 	} else {
 		// 7. ボードを選択
-		fmt.Println()
-		fmt.Println("📊 利用可能なボード:")
+		fmt.Println("\n📊 利用可能なボード:")
 		for i, board := range boards {
 			fmt.Printf("  %d) %s (ID: %d, Type: %s)\n", i+1, board.Name, board.ID, board.Type)
 		}
@@ -209,16 +202,13 @@ func runInit() error {
 		return fmt.Errorf("設定ファイルの書き込みに失敗しました: %v", err)
 	}
 
-	fmt.Println()
-	fmt.Println("✅ 設定が完了しました！")
+	fmt.Println("\n✅ 設定が完了しました！")
 	fmt.Printf("   設定ファイル: %s (カレントディレクトリ)\n", configFile)
 	fmt.Printf("   プロジェクト: %s (%s)\n", selectedProject.Name, selectedProject.Key)
 	fmt.Printf("   ボード: %s (ID: %d)\n", selectedBoard.Name, selectedBoard.ID)
-	fmt.Println()
-	fmt.Println("💡 使用方法:")
+	fmt.Println("\n💡 使用方法:")
 	fmt.Println("   gojira fetch  # チケットを取得")
 	fmt.Println("   gojira push   # チケットを更新")
-	fmt.Println()
 
 	return nil
 }
