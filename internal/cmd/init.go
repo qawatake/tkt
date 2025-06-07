@@ -109,7 +109,7 @@ func runInit() error {
 
 	var selectedProject *JiraProject
 	for {
-		fmt.Printf("プロジェクトを選択してください (1-%d): ", len(projects))
+		fmt.Print("プロジェクトを選択してください: ")
 		if !scanner.Scan() {
 			return fmt.Errorf("入力エラー")
 		}
@@ -150,7 +150,7 @@ func runInit() error {
 		}
 
 		for {
-			fmt.Printf("ボードを選択してください (1-%d): ", len(boards))
+			fmt.Print("ボードを選択してください: ")
 			if !scanner.Scan() {
 				return fmt.Errorf("入力エラー")
 			}
