@@ -7,18 +7,16 @@ require (
 	github.com/JohannesKaufmann/html-to-markdown/v2 v2.3.3
 	github.com/andygrunwald/go-jira v1.16.0
 	github.com/ankitpokhrel/jira-cli v1.6.0
-	github.com/ctreminiom/go-atlassian/v2 v2.4.0
 	github.com/go-git/go-git/v5 v5.16.0
+	github.com/k1LoW/errors v1.0.0
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
-	github.com/yuin/goldmark v1.7.11
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
-	dario.cat/mergo v1.0.2 // indirect
 	github.com/JohannesKaufmann/dom v0.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fatih/structs v1.1.0 // indirect
@@ -39,9 +37,6 @@ require (
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/tidwall/gjson v1.18.0 // indirect
-	github.com/tidwall/match v1.1.1 // indirect
-	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/trivago/tgo v1.0.7 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/net v0.39.0 // indirect

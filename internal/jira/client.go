@@ -1,20 +1,23 @@
 package jira
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
-
-	"github.com/Code-Hex/dd"
 
 	jiralib "github.com/andygrunwald/go-jira"
 	"github.com/ankitpokhrel/jira-cli/pkg/jira"
 	"github.com/ankitpokhrel/jira-cli/pkg/md"
 	"github.com/gojira/gojira/internal/adf"
 	"github.com/gojira/gojira/internal/config"
+	"github.com/gojira/gojira/internal/derrors"
 	"github.com/gojira/gojira/internal/ticket"
+	"github.com/k1LoW/errors"
 )
 
 // Client はJIRA APIクライアントのラッパーです
@@ -96,15 +99,11 @@ func (c *Client) FetchIssue(key string) (*ticket.Ticket, error) {
 	if err := c.validateProject(); err != nil {
 		return nil, err
 	}
-
-	// JIRAチケットを取得
-	issue, err := c.jiraCLIClient.GetIssue(key)
+	result, err := c.Get(context.Background(), key)
 	if err != nil {
-		return nil, fmt.Errorf("JIRAチケットの取得に失敗しました: %v", err)
+		return nil, err
 	}
-
-	ticket := convertJiraCLIIssueToTicket(issue)
-	return &ticket, nil
+	return convert(result.Issues[0])
 }
 
 // FetchIssues はJQLに基づいてJIRAチケットを取得します
@@ -145,6 +144,40 @@ func (c *Client) FetchIssues() ([]ticket.Ticket, error) {
 	}
 
 	return tickets, nil
+}
+
+func convert(issue *Issue) (*ticket.Ticket, error) {
+	ticket := &ticket.Ticket{
+		Key:    issue.Key,
+		Title:  issue.Fields.Summary,
+		Type:   strings.ToLower(issue.Fields.IssueType.Name),
+		Status: issue.Fields.Status.Name,
+	}
+
+	ticket.Body = adf.NewTranslator(issue.Fields.Description, adf.NewJiraMarkdownTranslator()).Translate()
+
+	if issue.Fields.Parent != nil {
+		ticket.ParentKey = issue.Fields.Parent.Key
+	}
+	if issue.Fields.Assignee != nil {
+		ticket.Assignee = issue.Fields.Assignee.Name
+	}
+	if issue.Fields.Reporter != nil {
+		ticket.Reporter = issue.Fields.Reporter.Name
+	}
+
+	// Parse timestamps
+	createdAt, err := issue.Fields.CreatedAt()
+	if err != nil {
+		return nil, err
+	}
+	updatedAt, err := issue.Fields.UpdatedAt()
+	if err != nil {
+		return nil, err
+	}
+	ticket.CreatedAt = createdAt
+	ticket.UpdatedAt = updatedAt
+	return ticket, nil
 }
 
 func convertJiraCLIIssueToTicket(issue *jira.Issue) ticket.Ticket {
@@ -271,4 +304,129 @@ func (c *Client) CreateIssue(issueType, summary, description, parentKey string) 
 	}
 
 	return newIssue, nil
+}
+
+type SearchResult struct {
+	// StartAt    int      `json:"startAt"`
+	MaxResults int      `json:"maxResults"`
+	Total      int      `json:"total"`
+	Issues     []*Issue `json:"issues"`
+}
+
+type Issue struct {
+	Key    string      `json:"key"`
+	Fields IssueFields `json:"fields"`
+}
+
+type IssueFields struct {
+	Summary   string `json:"summary"`
+	IssueType struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	} `json:"issuetype"`
+	Parent *struct {
+		ID  string `json:"id"`
+		Key string `json:"key"`
+	}
+	Status struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	} `json:"status"`
+	TimeOriginalEstimate *int     `json:"timeoriginalestimate"`
+	Description          *adf.ADF `json:"description"`
+	Assignee             *struct {
+		AccountID    string `json:"accountId"`
+		EmailAddress string `json:"emailAddress"`
+		Name         string `json:"displayName"`
+	} `json:"assignee"`
+	Reporter *struct {
+		AccountID    string `json:"accountId"`
+		EmailAddress string `json:"emailAddress"`
+		Name         string `json:"displayName"`
+	} `json:"reporter"`
+	Created string `json:"created"`
+	Updated string `json:"updated"`
+}
+
+// 2025-06-01T19:06:22.513+0900
+const jiraTimestampLayout = "2006-01-02T15:04:05.000-0700"
+
+func (f *IssueFields) CreatedAt() (_ time.Time, err error) {
+	defer derrors.Wrap(&err)
+	createdAt, err := time.Parse(jiraTimestampLayout, f.Created)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return createdAt, nil
+}
+
+func (f *IssueFields) UpdatedAt() (_ time.Time, err error) {
+	defer derrors.Wrap(&err)
+	updatedAt, err := time.Parse(jiraTimestampLayout, f.Updated)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return updatedAt, nil
+}
+
+func (c *Client) Get(ctx context.Context, key string) (_ *SearchResult, err error) {
+	defer derrors.Wrap(&err)
+	type Request struct {
+		JQL        string   `json:"jql"`
+		Fields     []string `json:"fields"`
+		StartAt    int      `json:"startAt"`
+		MaxResults int      `json:"maxResults"`
+	}
+
+	reqBody := Request{
+		JQL: fmt.Sprintf("key = %s", key),
+		Fields: []string{
+			"issuetype",
+			"timeoriginalestimate",
+			"aggregatetimeoriginalestimate",
+			"summary",
+			"created",
+			"status",
+			"updated",
+			"assignee",
+			"issuetype",
+			"description",
+			"reporter",
+			"parent",
+		},
+		StartAt:    0,
+		MaxResults: 1,
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, err
+	}
+	body := bytes.NewReader(jsonBody)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.config.Server+"/rest/api/3/search", body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.SetBasicAuth(c.config.Login, getAPIToken())
+
+	client := &http.Client{}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.New("JIRA APIリクエストが失敗しました: " + resp.Status)
+	}
+
+	var result SearchResult
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
 }
