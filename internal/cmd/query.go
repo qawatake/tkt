@@ -19,7 +19,8 @@ var (
 )
 
 var queryCmd = &cobra.Command{
-	Use:   "query",
+	Use:     "query",
+	Aliases: []string{"q"},
 	Short: "ローカルファイルのフロントマターをDuckDBで検索",
 	Long: `ローカルのマークダウンファイルのフロントマターをJSONに変換し、
 DuckDBのREPLを起動してSQLクエリを実行できます。
