@@ -18,7 +18,7 @@
 - [x] fetchのパフォーマンス改善。
   - [x] 並列化
   - [x] フィールドのフィルタ
-- [ ] diffのpagerを改善。
+- [x] diffのpagerを改善。
 - [x] コードブロックで言語がちゃんと読み込まれない。https://github.com/kentaro-m/blackfriday-confluence/tree/master を修正すればいい。
 - [ ] 書き込み対象外のフィールドを差分から除外する。
 - [ ] queryコマンド(duckdbとmdmdumpのラッパー)
