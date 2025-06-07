@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/gojira/gojira/internal/config"
+	"github.com/gojira/gojira/internal/ui"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -89,9 +90,9 @@ func runInit() error {
 
 	// 4. プロジェクト一覧を取得
 	fmt.Println()
-	fmt.Println("📋 プロジェクト一覧を取得中...")
-
-	projects, err := fetchProjects(serverURL, loginEmail, apiToken)
+	projects, err := ui.WithSpinnerValue("プロジェクト一覧を取得中...", func() ([]JiraProject, error) {
+		return fetchProjects(serverURL, loginEmail, apiToken)
+	})
 	if err != nil {
 		return fmt.Errorf("プロジェクト一覧の取得に失敗しました: %v", err)
 	}
@@ -126,9 +127,9 @@ func runInit() error {
 
 	// 6. ボード一覧を取得
 	fmt.Println()
-	fmt.Printf("📊 プロジェクト '%s' のボード一覧を取得中...\n", selectedProject.Name)
-
-	boards, err := fetchBoards(serverURL, loginEmail, apiToken, selectedProject.Key)
+	boards, err := ui.WithSpinnerValue(fmt.Sprintf("プロジェクト '%s' のボード一覧を取得中...", selectedProject.Name), func() ([]JiraBoard, error) {
+		return fetchBoards(serverURL, loginEmail, apiToken, selectedProject.Key)
+	})
 	if err != nil {
 		return fmt.Errorf("ボード一覧の取得に失敗しました: %v", err)
 	}

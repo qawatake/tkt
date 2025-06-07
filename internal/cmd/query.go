@@ -22,7 +22,7 @@ var (
 var queryCmd = &cobra.Command{
 	Use:     "query",
 	Aliases: []string{"q"},
-	Short: "ローカルファイルのフロントマターをDuckDBで検索",
+	Short:   "ローカルファイルのフロントマターをDuckDBで検索",
 	Long: `ローカルのマークダウンファイルのフロントマターをJSONに変換し、
 DuckDBのREPLを起動してSQLクエリを実行できます。
 REPLを終了すると一時ファイルは自動的に削除されます。`,
@@ -113,7 +113,7 @@ REPLを終了すると一時ファイルは自動的に削除されます。`,
 
 		// DuckDBを実行
 		err = duckdbCmd.Run()
-		
+
 		// 初期化ファイルも削除
 		os.Remove(initFile)
 
