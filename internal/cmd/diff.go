@@ -3,6 +3,10 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/gojira/gojira/internal/config"
 	"github.com/gojira/gojira/internal/ticket"
@@ -49,28 +53,30 @@ func displayDiffsAsText(diffs []ticket.DiffResult) error {
 	changedCount := 0
 	unchangedCount := 0
 
-	fmt.Println("\n=== 差分結果 ===")
+	var output strings.Builder
+	output.WriteString("\n=== 差分結果 ===")
 
 	for _, diff := range diffs {
 		if diff.HasDiff {
 			changedCount++
-			fmt.Printf("\n[変更あり] %s (%s)\n", diff.Key, diff.FilePath)
+			output.WriteString(fmt.Sprintf("\n\n[変更あり] %s (%s)\n", diff.Key, diff.FilePath))
 			if diff.DiffText != "" {
-				fmt.Println("差分:")
-				fmt.Println(diff.DiffText)
+				output.WriteString("差分:\n")
+				output.WriteString(diff.DiffText)
 			}
-			fmt.Println("---")
+			output.WriteString("\n---")
 		} else {
 			unchangedCount++
 		}
 	}
 
 	if unchangedCount > 0 {
-		fmt.Printf("\n[変更なし] %d件のチケットには変更がありません\n", unchangedCount)
+		output.WriteString(fmt.Sprintf("\n\n[変更なし] %d件のチケットには変更がありません\n", unchangedCount))
 	}
 
-	fmt.Printf("\n概要: %d件変更, %d件変更なし\n", changedCount, unchangedCount)
-	return nil
+	output.WriteString(fmt.Sprintf("\n概要: %d件変更, %d件変更なし\n", changedCount, unchangedCount))
+
+	return displayWithPager(output.String())
 }
 
 // displayDiffsAsJSON はJSON形式で差分を表示します
@@ -97,8 +103,44 @@ func displayDiffsAsJSON(diffs []ticket.DiffResult) error {
 		return fmt.Errorf("JSON出力の生成に失敗しました: %v", err)
 	}
 
-	fmt.Println(string(jsonBytes))
-	return nil
+	return displayWithPager(string(jsonBytes))
+}
+
+// displayWithPager は内容をページャーで表示します
+func displayWithPager(content string) error {
+	// 環境変数PAGERを確認、なければlessを使用
+	pager := os.Getenv("PAGER")
+	if pager == "" {
+		pager = "less"
+	}
+
+	// ページャーコマンドを実行
+	cmd := exec.Command(pager)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		// ページャーが使えない場合は標準出力に直接出力
+		fmt.Print(content)
+		return nil
+	}
+
+	// ページャーを起動
+	if err := cmd.Start(); err != nil {
+		// ページャーが使えない場合は標準出力に直接出力
+		fmt.Print(content)
+		return nil
+	}
+
+	// コンテンツをページャーに送信
+	go func() {
+		defer stdin.Close()
+		io.WriteString(stdin, content)
+	}()
+
+	// ページャーの終了を待つ
+	return cmd.Wait()
 }
 
 func init() {
