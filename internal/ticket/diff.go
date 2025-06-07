@@ -60,10 +60,22 @@ func CompareDirs(localDir, cacheDir string) ([]DiffResult, error) {
 			return nil, fmt.Errorf("キャッシュファイルの読み込みに失敗しました: %v", err)
 		}
 
+		// readonly項目以外に差分があるかチェック
+		if !localTicket.HasNonReadonlyDiff(cacheTicket) {
+			// readonly項目のみの変更の場合は差分なしとして扱う
+			results = append(results, DiffResult{
+				Key:      localTicket.Key,
+				FilePath: localFile,
+				HasDiff:  false,
+				DiffText: "",
+			})
+			continue
+		}
+
 		// 差分を検出
 		dmp := diffmatchpatch.New()
 		dmp.DiffTimeout = 1 * time.Second // タイムアウトを設定
-		fromRunes, toRunes, runesToLines := dmp.DiffLinesToRunes(format(cacheTicket.ToMarkdown()), format(localTicket.ToMarkdown()))
+		fromRunes, toRunes, runesToLines := dmp.DiffLinesToRunes(format(cacheTicket.ToMarkdownWithoutReadonly()), format(localTicket.ToMarkdownWithoutReadonly()))
 		diffs := dmp.DiffCharsToLines(dmp.DiffMainRunes(fromRunes, toRunes, false), runesToLines)
 		chunks := make([]diff.Chunk, 0, len(diffs))
 		for _, d := range diffs {
@@ -85,7 +97,7 @@ func CompareDirs(localDir, cacheDir string) ([]DiffResult, error) {
 		from := &diffFile{
 			fileMode: fileMode,
 			relPath:  fileName,
-			hash:     plumbing.ComputeHash(plumbing.BlobObject, []byte(format(cacheTicket.ToMarkdown()))),
+			hash:     plumbing.ComputeHash(plumbing.BlobObject, []byte(format(cacheTicket.ToMarkdownWithoutReadonly()))),
 		}
 		info, err = os.Stat(localFile)
 		if err != nil {
@@ -98,7 +110,7 @@ func CompareDirs(localDir, cacheDir string) ([]DiffResult, error) {
 		to := &diffFile{
 			fileMode: fileMode,
 			relPath:  fileName,
-			hash:     plumbing.ComputeHash(plumbing.BlobObject, []byte(format(localTicket.ToMarkdown()))),
+			hash:     plumbing.ComputeHash(plumbing.BlobObject, []byte(format(localTicket.ToMarkdownWithoutReadonly()))),
 		}
 
 		patch := gitDiffPatch{

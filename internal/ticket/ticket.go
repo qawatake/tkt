@@ -164,3 +164,21 @@ func FromFile(filePath string) (*Ticket, error) {
 
 	return ticket, nil
 }
+
+// ToMarkdownWithoutReadonly はreadonly項目を除外したマークダウン形式を返します
+func (t *Ticket) ToMarkdownWithoutReadonly() string {
+	// readonly項目（status, assignee, reporter, created_at, updated_at）を除外したフロントマターを作成
+	frontMatter := markdown.CreateFrontMatter(map[string]interface{}{
+		"key":       t.Key,
+		"parentKey": t.ParentKey,
+		"type":      t.Type,
+	})
+
+	// フロントマターとbodyを結合
+	return frontMatter + t.Body
+}
+
+// HasNonReadonlyDiff はreadonly項目以外に差分があるかチェックします
+func (t *Ticket) HasNonReadonlyDiff(other *Ticket) bool {
+	return t.ToMarkdownWithoutReadonly() != other.ToMarkdownWithoutReadonly()
+}
