@@ -18,4 +18,4 @@ https://github.com/ankitpokhrel/jira-cli と同じように設定をインタラ
 3. [x] loadingにはgithub.com/briandowns/spinnerを使う。
 4. [x] jqlも聞く。そしてデフォルトは`project = <default project>`にする。
 5. [x] 現状はmdファイルを格納するディレクトリ(mergeコマンドの出力先)は`tmp`で決め打ち。これをのticket.ymlで設定できるようにする。
-6. [ ] ボードやプロジェクトを選ぶときはpecoのようにfuzzy searchできるようにする。
+6. [x] ボードやプロジェクトを選ぶときはpecoのようにfuzzy searchできるようにする。

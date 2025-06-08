@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/gojira/gojira/internal/config"
 	"github.com/gojira/gojira/internal/ui"
+	"github.com/ktr0731/go-fuzzyfinder"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -98,27 +98,21 @@ func runInit() error {
 	}
 
 	// 5. プロジェクトを選択
-	fmt.Println("\n📋 利用可能なプロジェクト:")
-	for i, project := range projects {
-		fmt.Printf("  %d) %s (%s)\n", i+1, project.Name, project.Key)
+	fmt.Println("\n📋 プロジェクトを選択してください (入力してフィルタリング可能):")
+	projectIdx, err := fuzzyfinder.Find(
+		projects,
+		func(i int) string {
+			return fmt.Sprintf("%s (%s)", projects[i].Name, projects[i].Key)
+		},
+		fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
+			return fmt.Sprintf("プロジェクト: %s\nキー: %s\nID: %s",
+				projects[i].Name, projects[i].Key, projects[i].ID)
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("プロジェクトの選択がキャンセルされました: %v", err)
 	}
-
-	var selectedProject *JiraProject
-	for {
-		fmt.Print("プロジェクトを選択してください: ")
-		if !scanner.Scan() {
-			return fmt.Errorf("入力エラー")
-		}
-
-		choice, err := strconv.Atoi(strings.TrimSpace(scanner.Text()))
-		if err != nil || choice < 1 || choice > len(projects) {
-			fmt.Println("無効な選択です。再入力してください。")
-			continue
-		}
-
-		selectedProject = &projects[choice-1]
-		break
-	}
+	selectedProject := &projects[projectIdx]
 
 	// 6. ボード一覧を取得
 	boards, err := ui.WithSpinnerValue(fmt.Sprintf("プロジェクト '%s' のボード一覧を取得中...", selectedProject.Name), func() ([]JiraBoard, error) {
@@ -138,26 +132,21 @@ func runInit() error {
 		}
 	} else {
 		// 7. ボードを選択
-		fmt.Println("\n📊 利用可能なボード:")
-		for i, board := range boards {
-			fmt.Printf("  %d) %s (ID: %d, Type: %s)\n", i+1, board.Name, board.ID, board.Type)
+		fmt.Println("\n📊 ボードを選択してください (入力してフィルタリング可能):")
+		boardIdx, err := fuzzyfinder.Find(
+			boards,
+			func(i int) string {
+				return fmt.Sprintf("%s (ID: %d)", boards[i].Name, boards[i].ID)
+			},
+			fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
+				return fmt.Sprintf("ボード: %s\nID: %d\nタイプ: %s",
+					boards[i].Name, boards[i].ID, boards[i].Type)
+			}),
+		)
+		if err != nil {
+			return fmt.Errorf("ボードの選択がキャンセルされました: %v", err)
 		}
-
-		for {
-			fmt.Print("ボードを選択してください: ")
-			if !scanner.Scan() {
-				return fmt.Errorf("入力エラー")
-			}
-
-			choice, err := strconv.Atoi(strings.TrimSpace(scanner.Text()))
-			if err != nil || choice < 1 || choice > len(boards) {
-				fmt.Println("無効な選択です。再入力してください。")
-				continue
-			}
-
-			selectedBoard = &boards[choice-1]
-			break
-		}
+		selectedBoard = &boards[boardIdx]
 	}
 
 	// 8. JQLを入力
