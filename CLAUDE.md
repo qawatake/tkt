@@ -114,7 +114,9 @@ Tests use `github.com/stretchr/testify` with `assert` package:
 Claudeは実装時に以下のルールに従ってください。
 - 作業完了時には必ず以下のすべてのコマンドを実行する。
   - `go mod tidy`
-  - `gofmt -w .`
+  - `goimports -w .`
   - `go install ./cmd/gojira`
 - 作業の完了を以下で伝える。
+  - `afplay /System/Library/Sounds/Glass.aiff`
+- 作業中、ユーザになにかを問い合わせるときにはその前に通知を行う。
   - `afplay /System/Library/Sounds/Glass.aiff`
