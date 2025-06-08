@@ -24,10 +24,10 @@
 - [x] queryコマンド(duckdbとmdmdumpのラッパー)
 - [x] errors k1low3のとか？
 - [x] 設定ファイルの自動的な初期化
-- [ ] push後のcache更新
+- [x] push後のcache更新
+- [x] タイトルもfrontmatterに入れる。
 - [ ] pull
 - [ ] キャッシュディレクトリの衝突回避。
-- [ ] タイトルもfrontmatterに入れる。
 - [ ] チケット作成がうまくいかない。typeの翻訳がうまくいってないっぽい。
 - [ ] チケット削除。
 - [ ] マークダウンの書式改善
