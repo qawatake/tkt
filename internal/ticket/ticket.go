@@ -68,6 +68,7 @@ func (t *Ticket) ToMarkdown() string {
 	// フロントマターを作成
 	frontMatter := markdown.CreateFrontMatter(map[string]interface{}{
 		"key":        t.Key,
+		"title":      t.Title,
 		"parentKey":  t.ParentKey,
 		"type":       t.Type,
 		"status":     t.Status,
@@ -131,6 +132,9 @@ func FromFile(filePath string) (*Ticket, error) {
 	if key, ok := frontMatter["key"].(string); ok {
 		ticket.Key = key
 	}
+	if title, ok := frontMatter["title"].(string); ok {
+		ticket.Title = title
+	}
 	if parentKey, ok := frontMatter["parentKey"].(string); ok {
 		ticket.ParentKey = parentKey
 	}
@@ -153,23 +157,18 @@ func FromFile(filePath string) (*Ticket, error) {
 		ticket.UpdatedAt = updatedAt
 	}
 
-	// 本文からタイトルと内容を抽出
-	lines := strings.Split(body, "\n")
-	if len(lines) > 0 && strings.HasPrefix(lines[0], "# ") {
-		ticket.Title = strings.TrimPrefix(lines[0], "# ")
-		ticket.Body = strings.Join(lines[1:], "\n")
-	} else {
-		ticket.Body = body
-	}
+	// 本文をそのまま設定
+	ticket.Body = body
 
 	return ticket, nil
 }
 
 // ToMarkdownWithoutReadonly はreadonly項目を除外したマークダウン形式を返します
 func (t *Ticket) ToMarkdownWithoutReadonly() string {
-	// readonly項目（status, assignee, reporter, created_at, updated_at）を除外したフロントマターを作成
+	// readonly項目（key, status, assignee, reporter, created_at, updated_at）を除外したフロントマターを作成
+	// titleはwritableなのでフロントマターに含める
 	frontMatter := markdown.CreateFrontMatter(map[string]interface{}{
-		"key":       t.Key,
+		"title":     t.Title,
 		"parentKey": t.ParentKey,
 		"type":      t.Type,
 	})
