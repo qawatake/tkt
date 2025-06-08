@@ -4,4 +4,4 @@
 
 ## todo
 
-1. [ ] タイトルもfrontmatterに追加する。
+1. [x] タイトルもfrontmatterに追加する。
