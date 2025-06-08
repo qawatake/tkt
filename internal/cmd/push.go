@@ -7,6 +7,7 @@ import (
 	"github.com/qawatake/tkt/internal/config"
 	"github.com/qawatake/tkt/internal/jira"
 	"github.com/qawatake/tkt/internal/ticket"
+	"github.com/qawatake/tkt/internal/ui"
 	"github.com/qawatake/tkt/internal/verbose"
 	"github.com/qawatake/tkt/pkg/utils"
 	"github.com/sourcegraph/conc/pool"
@@ -43,76 +44,94 @@ keyがチケットはリモートにないチケットのため、JIRAにチケ�
 
 		verbose.Printf("ローカルの編集差分を %s からJIRAに適用します\n", pushDir)
 
-		// 2. キャッシュディレクトリを確保
-		cacheDir, err := config.EnsureCacheDir()
-		if err != nil {
-			return fmt.Errorf("キャッシュディレクトリの作成に失敗しました: %v", err)
+		// 差分検出処理を一括実行
+		type diffResult struct {
+			changedTickets []ticket.DiffResult
+			jiraClient     *jira.Client
 		}
 
-		// 3. JIRAに接続してリモートのチケットをキャッシュにfetch
-		verbose.Println("リモートのJIRAチケットをキャッシュに取得中...")
-		jiraClient, err := jira.NewClient(cfg)
-		if err != nil {
-			return fmt.Errorf("JIRAクライアントの作成に失敗しました: %v", err)
-		}
-
-		// 4. ローカルとキャッシュの差分を検出
-		verbose.Println("ローカルとリモートの差分を検出中...")
-		diffs, err := ticket.CompareDirs(pushDir, cacheDir)
-		if err != nil {
-			return fmt.Errorf("差分の検出に失敗しました: %v", err)
-		}
-
-		// 差分があるチケットを抽出
-		var changedTickets []ticket.DiffResult
-		for _, diff := range diffs {
-			if diff.HasDiff {
-				changedTickets = append(changedTickets, diff)
+		result, err := ui.WithSpinnerValue("差分を検出中...", func() (diffResult, error) {
+			// 2. キャッシュディレクトリを確保
+			cacheDir, err := config.EnsureCacheDir()
+			if err != nil {
+				return diffResult{}, fmt.Errorf("キャッシュディレクトリの作成に失敗しました: %v", err)
 			}
+
+			// 3. JIRAに接続してリモートのチケットをキャッシュにfetch
+			jiraClient, err := jira.NewClient(cfg)
+			if err != nil {
+				return diffResult{}, fmt.Errorf("JIRAクライアントの作成に失敗しました: %v", err)
+			}
+
+			// 4. ローカルとキャッシュの差分を検出
+			diffs, err := ticket.CompareDirs(pushDir, cacheDir)
+			if err != nil {
+				return diffResult{}, fmt.Errorf("差分の検出に失敗しました: %v", err)
+			}
+
+			// 差分があるチケットを抽出
+			var changedTickets []ticket.DiffResult
+			for _, diff := range diffs {
+				if diff.HasDiff {
+					changedTickets = append(changedTickets, diff)
+				}
+			}
+
+			if len(changedTickets) == 0 {
+				return diffResult{changedTickets: changedTickets, jiraClient: jiraClient}, nil
+			}
+
+			// 差分があるチケットについては最新の状態をキャッシュに保存し直す。
+			// 新規作成以外のキーを収集
+			var keysToFetch []string
+			for _, diff := range changedTickets {
+				if diff.Key != "" {
+					keysToFetch = append(keysToFetch, diff.Key)
+				}
+			}
+
+			// Bulk Fetch APIを使って一括取得
+			if len(keysToFetch) > 0 {
+				remoteTickets, err := jiraClient.BulkFetchIssues(keysToFetch)
+				if err != nil {
+					return diffResult{}, err
+				}
+
+				// 取得したチケットをキャッシュに保存
+				for _, remoteTicket := range remoteTickets {
+					_, err = remoteTicket.SaveToFile(cacheDir)
+					if err != nil {
+						return diffResult{}, err
+					}
+				}
+			}
+
+			// 改めて差分を検出
+			diffs, err = ticket.CompareDirs(pushDir, cacheDir)
+			if err != nil {
+				return diffResult{}, fmt.Errorf("差分の検出に失敗しました: %v", err)
+			}
+
+			// 差分があるチケットを抽出
+			changedTickets = nil
+			for _, diff := range diffs {
+				if diff.HasDiff {
+					changedTickets = append(changedTickets, diff)
+				}
+			}
+
+			return diffResult{changedTickets: changedTickets, jiraClient: jiraClient}, nil
+		})
+		if err != nil {
+			return err
 		}
+
+		changedTickets := result.changedTickets
+		jiraClient := result.jiraClient
 
 		if len(changedTickets) == 0 {
 			verbose.Println("差分はありません")
 			return nil
-		}
-
-		// 差分があるチケットについては最新の状態をキャッシュに保存し直す。
-		// 新規作成以外のキーを収集
-		var keysToFetch []string
-		for _, diff := range changedTickets {
-			if diff.Key != "" {
-				keysToFetch = append(keysToFetch, diff.Key)
-			}
-		}
-
-		// Bulk Fetch APIを使って一括取得
-		if len(keysToFetch) > 0 {
-			remoteTickets, err := jiraClient.BulkFetchIssues(keysToFetch)
-			if err != nil {
-				return err
-			}
-
-			// 取得したチケットをキャッシュに保存
-			for _, remoteTicket := range remoteTickets {
-				_, err = remoteTicket.SaveToFile(cacheDir)
-				if err != nil {
-					return err
-				}
-			}
-		}
-
-		// 改めて差分を検出
-		diffs, err = ticket.CompareDirs(pushDir, cacheDir)
-		if err != nil {
-			return fmt.Errorf("差分の検出に失敗しました: %v", err)
-		}
-
-		// 差分があるチケットを抽出
-		changedTickets = nil
-		for _, diff := range diffs {
-			if diff.HasDiff {
-				changedTickets = append(changedTickets, diff)
-			}
 		}
 
 		verbose.Printf("%d 件のチケットに差分があります\n", len(changedTickets))
@@ -160,77 +179,84 @@ keyがチケットはリモートにないチケットのため、JIRAにチケ�
 		var updatedCount, createdCount int
 		var mu sync.Mutex
 
-		p := pool.New().WithMaxGoroutines(5).WithErrors()
-		for _, diff := range confirmedTickets {
-			p.Go(func() error {
-				localTicket, err := ticket.FromFile(diff.FilePath)
-				if err != nil {
-					return fmt.Errorf("チケット %s の読み込みに失敗しました: %v", diff.Key, err)
-				}
+		err = ui.WithSpinner("変更を適用中...", func() error {
+			// キャッシュディレクトリを再取得
+			cacheDir, err := config.EnsureCacheDir()
+			if err != nil {
+				return fmt.Errorf("キャッシュディレクトリの作成に失敗しました: %v", err)
+			}
 
-				if localTicket.Key == "" {
-					// 新規チケット作成
-					verbose.Printf("新規チケットを作成中: %s\n", localTicket.Title)
-
-					// JIRAにチケットを作成
-					newIssue, err := jiraClient.CreateIssue(localTicket.Type, localTicket.Title, localTicket.Body, localTicket.ParentKey)
+			p := pool.New().WithMaxGoroutines(5).WithErrors()
+			for _, diff := range confirmedTickets {
+				p.Go(func() error {
+					localTicket, err := ticket.FromFile(diff.FilePath)
 					if err != nil {
-						return fmt.Errorf("チケット作成に失敗しました: %v", err)
+						return fmt.Errorf("チケット %s の読み込みに失敗しました: %v", diff.Key, err)
 					}
 
-					// ローカルファイルのKeyを更新
-					localTicket.Key = newIssue.Key
-					_, err = localTicket.SaveToFile(pushDir)
-					if err != nil {
-						return fmt.Errorf("ローカルファイルの更新に失敗しました: %v", err)
+					if localTicket.Key == "" {
+						// 新規チケット作成
+						verbose.Printf("新規チケットを作成中: %s\n", localTicket.Title)
+
+						// JIRAにチケットを作成
+						newIssue, err := jiraClient.CreateIssue(localTicket.Type, localTicket.Title, localTicket.Body, localTicket.ParentKey)
+						if err != nil {
+							return fmt.Errorf("チケット作成に失敗しました: %v", err)
+						}
+
+						// ローカルファイルのKeyを更新
+						localTicket.Key = newIssue.Key
+						_, err = localTicket.SaveToFile(pushDir)
+						if err != nil {
+							return fmt.Errorf("ローカルファイルの更新に失敗しました: %v", err)
+						}
+
+						// キャッシュも更新
+						remoteTicket := ticket.FromIssue(newIssue)
+						_, err = remoteTicket.SaveToFile(cacheDir)
+						if err != nil {
+							return fmt.Errorf("キャッシュの更新に失敗しました: %v", err)
+						}
+
+						verbose.Printf("作成完了: %s\n", newIssue.Key)
+						mu.Lock()
+						createdCount++
+						mu.Unlock()
+					} else {
+						// 既存チケット更新
+						verbose.Printf("チケットを更新中: %s\n", localTicket.Key)
+
+						// JIRAを更新
+						err := jiraClient.UpdateIssue(*localTicket)
+						if err != nil {
+							return fmt.Errorf("チケット更新に失敗しました: %v", err)
+						}
+
+						// キャッシュを更新（pushが成功したので最新の状態をキャッシュに保存）
+						// ローカルチケットをそのまま使わずにremoteからfetchする理由：
+						// - JIRAが自動更新する項目（updated日時、version等）を確実に取得
+						// - 権限やvalidationでJIRA側で値が変更される可能性への対応
+						// - データフロー（fetch→cache）の一貫性維持
+						remoteTicket, err := jiraClient.FetchIssue(localTicket.Key)
+						if err != nil {
+							return fmt.Errorf("更新後のチケット取得に失敗しました: %v", err)
+						}
+						_, err = remoteTicket.SaveToFile(cacheDir)
+						if err != nil {
+							return fmt.Errorf("キャッシュの更新に失敗しました: %v", err)
+						}
+
+						verbose.Printf("更新完了: %s\n", localTicket.Key)
+						mu.Lock()
+						updatedCount++
+						mu.Unlock()
 					}
-
-					// キャッシュも更新
-					remoteTicket := ticket.FromIssue(newIssue)
-					_, err = remoteTicket.SaveToFile(cacheDir)
-					if err != nil {
-						return fmt.Errorf("キャッシュの更新に失敗しました: %v", err)
-					}
-
-					verbose.Printf("作成完了: %s\n", newIssue.Key)
-					mu.Lock()
-					createdCount++
-					mu.Unlock()
-				} else {
-					// 既存チケット更新
-					verbose.Printf("チケットを更新中: %s\n", localTicket.Key)
-
-					// JIRAを更新
-					err := jiraClient.UpdateIssue(*localTicket)
-					if err != nil {
-						return fmt.Errorf("チケット更新に失敗しました: %v", err)
-					}
-
-					// キャッシュを更新（pushが成功したので最新の状態をキャッシュに保存）
-					// ローカルチケットをそのまま使わずにremoteからfetchする理由：
-					// - JIRAが自動更新する項目（updated日時、version等）を確実に取得
-					// - 権限やvalidationでJIRA側で値が変更される可能性への対応
-					// - データフロー（fetch→cache）の一貫性維持
-					remoteTicket, err := jiraClient.FetchIssue(localTicket.Key)
-					if err != nil {
-						return fmt.Errorf("更新後のチケット取得に失敗しました: %v", err)
-					}
-					_, err = remoteTicket.SaveToFile(cacheDir)
-					if err != nil {
-						return fmt.Errorf("キャッシュの更新に失敗しました: %v", err)
-					}
-
-					verbose.Printf("更新完了: %s\n", localTicket.Key)
-					mu.Lock()
-					updatedCount++
-					mu.Unlock()
-				}
-				return nil
-			})
-		}
-
-		// エラーの処理
-		if err := p.Wait(); err != nil {
+					return nil
+				})
+			}
+			return p.Wait()
+		})
+		if err != nil {
 			fmt.Printf("以下のエラーが発生しました:\n%v\n", err)
 			fmt.Printf("成功した分: %d 件作成, %d 件更新\n", createdCount, updatedCount)
 			return fmt.Errorf("一部の処理でエラーが発生しました")

@@ -5,6 +5,7 @@ import (
 
 	"github.com/qawatake/tkt/internal/config"
 	"github.com/qawatake/tkt/internal/jira"
+	"github.com/qawatake/tkt/internal/ui"
 	"github.com/qawatake/tkt/internal/verbose"
 	"github.com/spf13/cobra"
 )
@@ -40,40 +41,46 @@ var fetchCmd = &cobra.Command{
 			verbose.Printf("Custom JQL: %s\n", cfg.JQL)
 		}
 
-		// 2. JIRAに接続
-		jiraClient, err := jira.NewClient(cfg)
-		if err != nil {
-			return fmt.Errorf("JIRAクライアントの作成に失敗しました: %v", err)
-		}
-
-		// 3. チケットを取得
-		verbose.Println("JIRAからチケットを取得中...")
-		tickets, err := jiraClient.FetchIssues()
-		if err != nil {
-			return fmt.Errorf("チケットの取得に失敗しました: %v", err)
-		}
-
-		verbose.Printf("%d 件のチケットを取得しました\n", len(tickets))
-
-		// 5. キャッシュディレクトリを確保
-		cacheDir, err := config.EnsureCacheDir()
-		if err != nil {
-			return fmt.Errorf("キャッシュディレクトリの作成に失敗しました: %v", err)
-		}
-
-		// チケットを処理
-		savedCount := 0
-		for _, ticket := range tickets {
-			// JIRAのイシューからTicketを作成
-
-			// キャッシュディレクトリに保存
-			savedCachePath, err := ticket.SaveToFile(cacheDir)
+		// チケット取得処理を一括実行
+		savedCount, err := ui.WithSpinnerValue("チケット取得中...", func() (int, error) {
+			// 2. JIRAに接続
+			jiraClient, err := jira.NewClient(cfg)
 			if err != nil {
-				verbose.Printf("警告: チケット %s のキャッシュ保存に失敗しました: %v\n", ticket.Key, err)
+				return 0, fmt.Errorf("JIRAクライアントの作成に失敗しました: %v", err)
 			}
 
-			verbose.Printf("保存: %s -> %s\n", ticket.Key, savedCachePath)
-			savedCount++
+			// 3. チケットを取得
+			tickets, err := jiraClient.FetchIssues()
+			if err != nil {
+				return 0, fmt.Errorf("チケットの取得に失敗しました: %v", err)
+			}
+
+			verbose.Printf("%d 件のチケットを取得しました\n", len(tickets))
+
+			// 5. キャッシュディレクトリを確保
+			cacheDir, err := config.EnsureCacheDir()
+			if err != nil {
+				return 0, fmt.Errorf("キャッシュディレクトリの作成に失敗しました: %v", err)
+			}
+
+			// チケットを処理
+			savedCount := 0
+			for _, ticket := range tickets {
+				// JIRAのイシューからTicketを作成
+
+				// キャッシュディレクトリに保存
+				savedCachePath, err := ticket.SaveToFile(cacheDir)
+				if err != nil {
+					verbose.Printf("警告: チケット %s のキャッシュ保存に失敗しました: %v\n", ticket.Key, err)
+				}
+
+				verbose.Printf("保存: %s -> %s\n", ticket.Key, savedCachePath)
+				savedCount++
+			}
+			return savedCount, nil
+		})
+		if err != nil {
+			return err
 		}
 
 		verbose.Printf("\n%d 件のチケットを保存しました\n", savedCount)
