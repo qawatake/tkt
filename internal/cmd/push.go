@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/qawatake/tkt/internal/config"
@@ -204,11 +205,24 @@ keyがチケットはリモートにないチケットのため、JIRAにチケ�
 							return fmt.Errorf("チケット作成に失敗しました: %v", err)
 						}
 
+						// 元のファイルパスを保存
+						originalFilePath := diff.FilePath
+
 						// ローカルファイルのKeyを更新
 						localTicket.Key = newIssue.Key
-						_, err = localTicket.SaveToFile(pushDir)
+						newFilePath, err := localTicket.SaveToFile(pushDir)
 						if err != nil {
 							return fmt.Errorf("ローカルファイルの更新に失敗しました: %v", err)
+						}
+
+						// 元のファイルを削除（新しいファイルパスと異なる場合のみ）
+						if originalFilePath != newFilePath {
+							err = os.Remove(originalFilePath)
+							if err != nil {
+								verbose.Printf("警告: 元のファイル %s の削除に失敗しました: %v\n", originalFilePath, err)
+							} else {
+								verbose.Printf("元のファイル %s を削除し、%s にリネームしました\n", originalFilePath, newFilePath)
+							}
 						}
 
 						// キャッシュも更新

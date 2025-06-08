@@ -36,16 +36,29 @@ func NewHour(d time.Duration) Hour {
 
 // FromIssue はJIRA APIのIssueからTicketを作成します
 func FromIssue(issue *jiralib.Issue) *Ticket {
+	// issueやfieldsがnilの場合の安全な処理
+	if issue == nil || issue.Fields == nil {
+		return &Ticket{}
+	}
+
 	// JIRA記法をMarkdownに変換
 	var body string
 	if issue.Fields.Description != "" {
 		body = markdown.ConvertJiraToMarkdown(issue.Fields.Description)
 	}
 
+	var issueType, status string
+	if issue.Fields.Type.Name != "" {
+		issueType = strings.ToLower(issue.Fields.Type.Name)
+	}
+	if issue.Fields.Status.Name != "" {
+		status = issue.Fields.Status.Name
+	}
+
 	ticket := &Ticket{
 		Key:       issue.Key,
-		Type:      strings.ToLower(issue.Fields.Type.Name),
-		Status:    issue.Fields.Status.Name,
+		Type:      issueType,
+		Status:    status,
 		CreatedAt: time.Time(issue.Fields.Created),
 		UpdatedAt: time.Time(issue.Fields.Updated),
 		Title:     issue.Fields.Summary,
