@@ -14,17 +14,24 @@ import (
 
 // Ticket はJIRAチケットのローカル表現です
 type Ticket struct {
-	Key       string    `yaml:"key"`
-	ParentKey string    `yaml:"parentKey"`
-	Type      string    `yaml:"type"`
-	Status    string    `yaml:"status"`
-	Assignee  string    `yaml:"assignee"`
-	Reporter  string    `yaml:"reporter"`
-	CreatedAt time.Time `yaml:"created_at"`
-	UpdatedAt time.Time `yaml:"updated_at"`
-	Title     string    `yaml:"-"`
-	Body      string    `yaml:"-"`
-	FilePath  string    `yaml:"-"`
+	Key              string    `yaml:"key"`
+	ParentKey        string    `yaml:"parentKey"`
+	Type             string    `yaml:"type"`
+	Status           string    `yaml:"status"`
+	Assignee         string    `yaml:"assignee"`
+	Reporter         string    `yaml:"reporter"`
+	CreatedAt        time.Time `yaml:"created_at"`
+	UpdatedAt        time.Time `yaml:"updated_at"`
+	OriginalEstimate Hour      `yaml:"original_estimate"`
+	Title            string    `yaml:"-"`
+	Body             string    `yaml:"-"`
+	FilePath         string    `yaml:"-"`
+}
+
+type Hour float64
+
+func NewHour(d time.Duration) Hour {
+	return Hour(d) / Hour(time.Hour)
 }
 
 // FromIssue はJIRA APIのIssueからTicketを作成します
@@ -67,15 +74,16 @@ func FromIssue(issue *jiralib.Issue) *Ticket {
 func (t *Ticket) ToMarkdown() string {
 	// フロントマターを作成
 	frontMatter := markdown.CreateFrontMatter(map[string]interface{}{
-		"key":        t.Key,
-		"title":      t.Title,
-		"parentKey":  t.ParentKey,
-		"type":       t.Type,
-		"status":     t.Status,
-		"assignee":   t.Assignee,
-		"reporter":   t.Reporter,
-		"created_at": t.CreatedAt,
-		"updated_at": t.UpdatedAt,
+		"key":               t.Key,
+		"title":             t.Title,
+		"parentKey":         t.ParentKey,
+		"type":              t.Type,
+		"status":            t.Status,
+		"assignee":          t.Assignee,
+		"reporter":          t.Reporter,
+		"created_at":        t.CreatedAt,
+		"updated_at":        t.UpdatedAt,
+		"original_estimate": t.OriginalEstimate,
 	})
 
 	// マークダウン本文を作成

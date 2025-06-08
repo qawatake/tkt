@@ -186,23 +186,26 @@ func (c *Client) FetchIssues() (_ []*ticket.Ticket, err error) {
 }
 
 func convert(issue *Issue) (*ticket.Ticket, error) {
-	ticket := &ticket.Ticket{
+	tkt := &ticket.Ticket{
 		Key:    issue.Key,
 		Title:  issue.Fields.Summary,
 		Type:   strings.ToLower(issue.Fields.IssueType.Name),
 		Status: issue.Fields.Status.Name,
 	}
 
-	ticket.Body = adf.NewTranslator(issue.Fields.Description, adf.NewJiraMarkdownTranslator()).Translate()
+	tkt.Body = adf.NewTranslator(issue.Fields.Description, adf.NewJiraMarkdownTranslator()).Translate()
 
 	if issue.Fields.Parent != nil {
-		ticket.ParentKey = issue.Fields.Parent.Key
+		tkt.ParentKey = issue.Fields.Parent.Key
 	}
 	if issue.Fields.Assignee != nil {
-		ticket.Assignee = issue.Fields.Assignee.Name
+		tkt.Assignee = issue.Fields.Assignee.Name
 	}
 	if issue.Fields.Reporter != nil {
-		ticket.Reporter = issue.Fields.Reporter.Name
+		tkt.Reporter = issue.Fields.Reporter.Name
+	}
+	if issue.Fields.TimeOriginalEstimate != nil {
+		tkt.OriginalEstimate = ticket.NewHour(time.Duration(*issue.Fields.TimeOriginalEstimate) * time.Second)
 	}
 
 	// Parse timestamps
@@ -214,9 +217,9 @@ func convert(issue *Issue) (*ticket.Ticket, error) {
 	if err != nil {
 		return nil, err
 	}
-	ticket.CreatedAt = createdAt
-	ticket.UpdatedAt = updatedAt
-	return ticket, nil
+	tkt.CreatedAt = createdAt
+	tkt.UpdatedAt = updatedAt
+	return tkt, nil
 }
 
 // validateProject はプロジェクトが存在するか確認します
