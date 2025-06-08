@@ -18,7 +18,7 @@ import (
 
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "インタラクティブに設定ファイルを作成",
+	Short: "インタラクティブに設定ファイルを作成します。",
 	Long: `インタラクティブに設定ファイルを作成します。
 JIRAサーバーのURL、ログインメール、プロジェクト、ボードを選択して
 カレントディレクトリにticket.ymlを作成します。`,

@@ -23,10 +23,8 @@ var (
 var queryCmd = &cobra.Command{
 	Use:     "query",
 	Aliases: []string{"q"},
-	Short:   "ローカルファイルのフロントマターをDuckDBで検索",
-	Long: `ローカルのマークダウンファイルのフロントマターをJSONに変換し、
-DuckDBのREPLを起動してSQLクエリを実行できます。
-REPLを終了すると一時ファイルは自動的に削除されます。`,
+	Short:   "ローカルのファイルをSQLで検索します。",
+	Long:    `ローカルのファイルをSQLで検索します。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// 1. 設定ファイルを読み込む
 		cfg, err := config.LoadConfig()

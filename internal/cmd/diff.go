@@ -21,9 +21,8 @@ var (
 
 var diffCmd = &cobra.Command{
 	Use:   "diff",
-	Short: "ローカルとリモートのJIRAチケットの差分を表示",
-	Long: `ローカルで編集したJIRAチケットとリモートのJIRAチケットの差分を表示します。
-差分を計算する前に~/.cache/tktにリモートのチケットをfetchします。`,
+	Short: "ローカルとリモートにあるJIRAチケットの差分を表示します。",
+	Long:  `ローカルで編集したJIRAチケットとリモートにあるJIRAチケットの差分を表示します。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// 1. 設定ファイルを読み込む
 		cfg, err := config.LoadConfig()

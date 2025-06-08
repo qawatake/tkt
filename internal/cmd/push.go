@@ -21,10 +21,9 @@ var (
 
 var pushCmd = &cobra.Command{
 	Use:   "push",
-	Short: "ローカルでの編集差分をリモートのJIRAチケットに適用",
+	Short: "ローカルでの編集差分をリモートのJIRAチケットに適用します。",
 	Long: `ローカルでの編集差分をリモートのJIRAチケットに適用します。
-ローカルにfetchしたものと差分があるファイルだけ更新します。
-keyがないものはremoteにないチケットのため、JIRAにチケットを作成したあとにファイルのkeyを更新します。
+keyがチケットはリモートにないチケットのため、JIRAにチケットを作成したあとにファイルのkeyを更新します。
 
 -f, --force フラグを使用すると、確認なしで強制的にpushされます。`,
 	RunE: func(cmd *cobra.Command, args []string) error {

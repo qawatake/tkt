@@ -15,9 +15,10 @@ import (
 
 var pullCmd = &cobra.Command{
 	Use:   "pull",
-	Short: "JIRAチケットをダウンロードしてローカルにマージ",
-	Long: `JIRAチケットをダウンロードして、ローカルディレクトリにマージします。
-fetchとmergeコマンドを組み合わせたコマンドです。`,
+	Short: "リモートにあるチケットの最新情報を取得し、それをもとにローカルのチケットを上書きします。",
+	Long: `リモートにあるチケットの最新情報を取得し、ローカルのチケットを上書きします。fetchとmergeコマンドを組み合わせたコマンドです。
+
+	-f, --force フラグを使用すると、確認なしで強制的に上書きされます。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// 1. 設定ファイルを読み込む
 		cfg, err := config.LoadConfig()

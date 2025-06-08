@@ -15,10 +15,8 @@ var (
 
 var fetchCmd = &cobra.Command{
 	Use:   "fetch",
-	Short: "JIRAチケットをローカルにダウンロード",
-	Long: `JIRAチケットをローカルにダウンロードします。
-カレントディレクトリの指定されたディレクトリにJIRAチケットをダウンロードします。
-エピックもissueチケットもフラットに格納します。`,
+	Short: "リモートのJIRAチケットの最新情報を取得します。",
+	Long:  `リモートのJIRAチケットの最新情報を取得します。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// 1. 設定ファイルを読み込む
 		cfg, err := config.LoadConfig()

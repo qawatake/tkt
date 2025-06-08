@@ -19,7 +19,10 @@ var (
 
 var mergeCmd = &cobra.Command{
 	Use:   "merge",
-	Short: "キャッシュにあるリモートのコピーでローカルのJIRAチケットを上書きします。",
+	Short: "リモートにあるチケットでローカルのJIRAチケットを上書きします。",
+	Long: `リモートにあるチケットでローカルのJIRAチケットを上書きします。
+
+	-f, --force フラグを使用すると、確認なしで強制的に上書きされます。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// 1. 設定ファイルを読み込む
 		cfg, err := config.LoadConfig()
