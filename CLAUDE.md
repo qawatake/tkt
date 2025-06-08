@@ -116,3 +116,5 @@ Claudeは実装時に以下のルールに従ってください。
   - `go mod tidy`
   - `gofmt -w .`
   - `go install ./cmd/gojira`
+- 作業の完了を以下で伝える。
+  - `afplay /System/Library/Sounds/Glass.aiff`
