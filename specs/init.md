@@ -1,0 +1,21 @@
+# initコマンド
+
+https://github.com/ankitpokhrel/jira-cli と同じように設定をインタラクティブに作成します。
+
+1. 設定ファイル`ticket.yml`をカレントディレクトリに作成します。
+2. Installation typeはCloud決め打ちです。(jira cliの確認事項)
+3. link to jira serverは聞きましょう。
+4. login emailも聞きましょう。
+5. link to jira serverとlogin emailからプロジェクトにアクセスできるはずです。default projectを選択肢から選ばせましょう。
+6. プロジェクトが決まるとデフォルトのボードも選ばせましょう。これも選択肢から選ばせましょう。
+5. jqlを聞きましょう。デフォルトは`project = <default project>`です。
+7. 以上です。
+
+## todo
+
+1. [x] ticket.ymlの対応。
+2. [x] `1-1`みたいな謎の番号を消す。例: `ボードを選択してください (1-1): 1`。`プロジェクトを選択してください (1-2): 1`。
+3. [x] loadingにはgithub.com/briandowns/spinnerを使う。
+4. [x] jqlも聞く。そしてデフォルトは`project = <default project>`にする。
+5. [x] 現状はmdファイルを格納するディレクトリ(mergeコマンドの出力先)は`tmp`で決め打ち。これをのticket.ymlで設定できるようにする。
+6. [ ] ボードやプロジェクトを選ぶときはpecoのようにfuzzy searchできるようにする。
