@@ -36,10 +36,10 @@ REPLを終了すると一時ファイルは自動的に削除されます。`,
 
 		// queryDirが指定されていない場合は設定ファイルのディレクトリを使用
 		if queryDir == "" {
-			queryDir = cfg.Directory
-			if queryDir == "" {
-				queryDir = "./tmp" // フォールバック
+			if cfg.Directory == "" {
+				return fmt.Errorf("設定ファイルにdirectoryが設定されていません。gojira initで設定してください")
 			}
+			queryDir = cfg.Directory
 		}
 
 		// 2. マークダウンファイルを検索

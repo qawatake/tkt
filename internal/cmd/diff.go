@@ -33,10 +33,10 @@ var diffCmd = &cobra.Command{
 
 		// diffDirが指定されていない場合は設定ファイルのディレクトリを使用
 		if diffDir == "" {
-			diffDir = cfg.Directory
-			if diffDir == "" {
-				diffDir = "./tmp" // フォールバック
+			if cfg.Directory == "" {
+				return fmt.Errorf("設定ファイルにdirectoryが設定されていません。gojira initで設定してください")
 			}
+			diffDir = cfg.Directory
 		}
 
 		verbose.Printf("ローカルとリモートのJIRAチケットの差分を表示します（ディレクトリ: %s, フォーマット: %s）\n", diffDir, diffFormat)

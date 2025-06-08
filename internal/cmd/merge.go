@@ -28,10 +28,10 @@ var mergeCmd = &cobra.Command{
 
 		// outputDirが指定されていない場合は設定ファイルのディレクトリを使用
 		if outputDir == "" {
-			outputDir = cfg.Directory
-			if outputDir == "" {
-				outputDir = "./tmp" // フォールバック
+			if cfg.Directory == "" {
+				return fmt.Errorf("設定ファイルにdirectoryが設定されていません。gojira initで設定してください")
 			}
+			outputDir = cfg.Directory
 		}
 
 		verbose.Printf("JIRAチケットを %s にマージします\n", outputDir)

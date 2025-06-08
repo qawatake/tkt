@@ -31,10 +31,10 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 
 		// pushDirが指定されていない場合は設定ファイルのディレクトリを使用
 		if pushDir == "" {
-			pushDir = cfg.Directory
-			if pushDir == "" {
-				pushDir = "./tmp" // フォールバック
+			if cfg.Directory == "" {
+				return fmt.Errorf("設定ファイルにdirectoryが設定されていません。gojira initで設定してください")
 			}
+			pushDir = cfg.Directory
 		}
 
 		verbose.Printf("ローカルの編集差分を %s からJIRAに適用します\n", pushDir)
