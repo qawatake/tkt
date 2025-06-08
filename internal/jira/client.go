@@ -127,7 +127,7 @@ func (c *Client) FetchIssues() (_ []*ticket.Ticket, err error) {
 		defer derrors.Wrap(&err)
 		issues := make([]*Issue, 0, 10000)
 		const limitRequestCount = 100 // 安全のための上限
-		const bigNumber = 1
+		const bigNumber = 1000
 		ctx := context.Background()
 		result, err := c.Search(ctx, jql, 0, bigNumber)
 		if err != nil {
