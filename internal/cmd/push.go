@@ -2,12 +2,14 @@ package cmd
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/gojira/gojira/internal/config"
 	"github.com/gojira/gojira/internal/jira"
 	"github.com/gojira/gojira/internal/ticket"
 	"github.com/gojira/gojira/internal/verbose"
 	"github.com/gojira/gojira/pkg/utils"
+	"github.com/sourcegraph/conc/pool"
 	"github.com/spf13/cobra"
 )
 
@@ -115,11 +117,9 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 			return nil
 		}
 
-		// 実際に適用
-		updatedCount := 0
-		createdCount := 0
+		// ユーザーに確認を取る
+		var confirmedTickets []ticket.DiffResult
 		for _, diff := range changedTickets {
-			// 差分がある場合はユーザに確認
 			if !dryRun {
 				fmt.Printf("\n=== ファイル: %s ===\n", diff.FilePath)
 				if diff.Key != "" {
@@ -134,70 +134,92 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 					continue
 				}
 			}
+			confirmedTickets = append(confirmedTickets, diff)
+		}
 
-			// ローカルのチケットを読み込み
-			localTicket, err := ticket.FromFile(diff.FilePath)
-			if err != nil {
-				verbose.Printf("警告: チケット %s の読み込みに失敗しました: %v\n", diff.Key, err)
-				continue
-			}
+		if len(confirmedTickets) == 0 {
+			verbose.Println("適用するチケットがありません")
+			return nil
+		}
 
-			if localTicket.Key == "" {
-				// 新規チケット作成
-				verbose.Printf("新規チケットを作成中: %s\n", localTicket.Title)
+		// 実際に適用（conc poolを使用して最大5並列で処理）
+		var updatedCount, createdCount int
+		var mu sync.Mutex
 
-				// JIRAにチケットを作成
-				newIssue, err := jiraClient.CreateIssue(localTicket.Type, localTicket.Title, localTicket.Body, localTicket.ParentKey)
+		p := pool.New().WithMaxGoroutines(5).WithErrors()
+		for _, diff := range confirmedTickets {
+			p.Go(func() error {
+				localTicket, err := ticket.FromFile(diff.FilePath)
 				if err != nil {
-					fmt.Printf("エラー: チケット作成に失敗しました: %v\n", err)
-					continue
+					return fmt.Errorf("チケット %s の読み込みに失敗しました: %v", diff.Key, err)
 				}
 
-				// ローカルファイルのKeyを更新
-				localTicket.Key = newIssue.Key
-				_, err = localTicket.SaveToFile(pushDir)
-				if err != nil {
-					fmt.Printf("警告: ローカルファイルの更新に失敗しました: %v\n", err)
-				}
+				if localTicket.Key == "" {
+					// 新規チケット作成
+					verbose.Printf("新規チケットを作成中: %s\n", localTicket.Title)
 
-				// キャッシュも更新
-				remoteTicket := ticket.FromIssue(newIssue)
-				_, err = remoteTicket.SaveToFile(cacheDir)
-				if err != nil {
-					fmt.Printf("警告: キャッシュの更新に失敗しました: %v\n", err)
-				}
+					// JIRAにチケットを作成
+					newIssue, err := jiraClient.CreateIssue(localTicket.Type, localTicket.Title, localTicket.Body, localTicket.ParentKey)
+					if err != nil {
+						return fmt.Errorf("チケット作成に失敗しました: %v", err)
+					}
 
-				verbose.Printf("作成完了: %s\n", newIssue.Key)
-				createdCount++
-			} else {
-				// 既存チケット更新
-				verbose.Printf("チケットを更新中: %s\n", localTicket.Key)
+					// ローカルファイルのKeyを更新
+					localTicket.Key = newIssue.Key
+					_, err = localTicket.SaveToFile(pushDir)
+					if err != nil {
+						return fmt.Errorf("ローカルファイルの更新に失敗しました: %v", err)
+					}
 
-				// JIRAを更新
-				err := jiraClient.UpdateIssue(*localTicket)
-				if err != nil {
-					fmt.Printf("エラー: チケット更新に失敗しました: %v\n", err)
-					continue
-				}
-
-				// キャッシュを更新（pushが成功したので最新の状態をキャッシュに保存）
-				// ローカルチケットをそのまま使わずにremoteからfetchする理由：
-				// - JIRAが自動更新する項目（updated日時、version等）を確実に取得
-				// - 権限やvalidationでJIRA側で値が変更される可能性への対応
-				// - データフロー（fetch→cache）の一貫性維持
-				remoteTicket, err := jiraClient.FetchIssue(localTicket.Key)
-				if err != nil {
-					fmt.Printf("警告: 更新後のチケット取得に失敗しました: %v\n", err)
-				} else {
+					// キャッシュも更新
+					remoteTicket := ticket.FromIssue(newIssue)
 					_, err = remoteTicket.SaveToFile(cacheDir)
 					if err != nil {
-						fmt.Printf("警告: キャッシュの更新に失敗しました: %v\n", err)
+						return fmt.Errorf("キャッシュの更新に失敗しました: %v", err)
 					}
-				}
 
-				verbose.Printf("更新完了: %s\n", localTicket.Key)
-				updatedCount++
-			}
+					verbose.Printf("作成完了: %s\n", newIssue.Key)
+					mu.Lock()
+					createdCount++
+					mu.Unlock()
+				} else {
+					// 既存チケット更新
+					verbose.Printf("チケットを更新中: %s\n", localTicket.Key)
+
+					// JIRAを更新
+					err := jiraClient.UpdateIssue(*localTicket)
+					if err != nil {
+						return fmt.Errorf("チケット更新に失敗しました: %v", err)
+					}
+
+					// キャッシュを更新（pushが成功したので最新の状態をキャッシュに保存）
+					// ローカルチケットをそのまま使わずにremoteからfetchする理由：
+					// - JIRAが自動更新する項目（updated日時、version等）を確実に取得
+					// - 権限やvalidationでJIRA側で値が変更される可能性への対応
+					// - データフロー（fetch→cache）の一貫性維持
+					remoteTicket, err := jiraClient.FetchIssue(localTicket.Key)
+					if err != nil {
+						return fmt.Errorf("更新後のチケット取得に失敗しました: %v", err)
+					}
+					_, err = remoteTicket.SaveToFile(cacheDir)
+					if err != nil {
+						return fmt.Errorf("キャッシュの更新に失敗しました: %v", err)
+					}
+
+					verbose.Printf("更新完了: %s\n", localTicket.Key)
+					mu.Lock()
+					updatedCount++
+					mu.Unlock()
+				}
+				return nil
+			})
+		}
+
+		// エラーの処理
+		if err := p.Wait(); err != nil {
+			fmt.Printf("以下のエラーが発生しました:\n%v\n", err)
+			fmt.Printf("成功した分: %d 件作成, %d 件更新\n", createdCount, updatedCount)
+			return fmt.Errorf("一部の処理でエラーが発生しました")
 		}
 
 		verbose.Printf("\n完了: %d 件作成, %d 件更新\n", createdCount, updatedCount)
