@@ -16,6 +16,7 @@ import (
 var (
 	pushDir string
 	dryRun  bool
+	force   bool
 )
 
 var pushCmd = &cobra.Command{
@@ -23,7 +24,9 @@ var pushCmd = &cobra.Command{
 	Short: "ローカルでの編集差分をリモートのJIRAチケットに適用",
 	Long: `ローカルでの編集差分をリモートのJIRAチケットに適用します。
 ローカルにfetchしたものと差分があるファイルだけ更新します。
-keyがないものはremoteにないチケットのため、JIRAにチケットを作成したあとにファイルのkeyを更新します。`,
+keyがないものはremoteにないチケットのため、JIRAにチケットを作成したあとにファイルのkeyを更新します。
+
+-f, --force フラグを使用すると、確認なしで強制的にpushされます。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// 1. 設定ファイルを読み込む
 		cfg, err := config.LoadConfig()
@@ -115,6 +118,10 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 
 		verbose.Printf("%d 件のチケットに差分があります\n", len(changedTickets))
 
+		if force {
+			verbose.Println("フォースモード: 確認なしで全てのファイルをpushします")
+		}
+
 		// 5. 差分をJIRAに適用
 		if dryRun {
 			verbose.Println("ドライラン: 実際には適用されません")
@@ -128,7 +135,7 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 		// ユーザーに確認を取る
 		var confirmedTickets []ticket.DiffResult
 		for _, diff := range changedTickets {
-			if !dryRun {
+			if !dryRun && !force {
 				fmt.Printf("\n=== ファイル: %s ===\n", diff.FilePath)
 				if diff.Key != "" {
 					fmt.Printf("チケット: %s\n", diff.Key)
@@ -241,4 +248,5 @@ func init() {
 	// フラグの設定
 	pushCmd.Flags().StringVarP(&pushDir, "dir", "d", "", "チケットディレクトリ")
 	pushCmd.Flags().BoolVar(&dryRun, "dry-run", false, "実際に適用せずに差分のみ表示")
+	pushCmd.Flags().BoolVarP(&force, "force", "f", false, "確認なしで強制的にpush")
 }
