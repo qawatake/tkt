@@ -180,6 +180,21 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 					continue
 				}
 
+				// キャッシュを更新（pushが成功したので最新の状態をキャッシュに保存）
+				// ローカルチケットをそのまま使わずにremoteからfetchする理由：
+				// - JIRAが自動更新する項目（updated日時、version等）を確実に取得
+				// - 権限やvalidationでJIRA側で値が変更される可能性への対応
+				// - データフロー（fetch→cache）の一貫性維持
+				remoteTicket, err := jiraClient.FetchIssue(localTicket.Key)
+				if err != nil {
+					fmt.Printf("警告: 更新後のチケット取得に失敗しました: %v\n", err)
+				} else {
+					_, err = remoteTicket.SaveToFile(cacheDir)
+					if err != nil {
+						fmt.Printf("警告: キャッシュの更新に失敗しました: %v\n", err)
+					}
+				}
+
 				verbose.Printf("更新完了: %s\n", localTicket.Key)
 				updatedCount++
 			}
