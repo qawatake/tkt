@@ -431,3 +431,144 @@ func (c *Client) Get(ctx context.Context, key string) (_ *Issue, err error) {
 	}
 	return result.Issues[0], nil
 }
+
+// BulkFetchIssues は複数のJIRAチケットを一括で取得します
+func (c *Client) BulkFetchIssues(keys []string) (_ []*ticket.Ticket, err error) {
+	defer derrors.Wrap(&err)
+	if len(keys) == 0 {
+		return []*ticket.Ticket{}, nil
+	}
+
+	// まずプロジェクトが存在するか確認
+	if err := c.validateProject(); err != nil {
+		return nil, err
+	}
+
+	const batchSize = 100 // JIRA Cloud APIの制限に基づく
+	ctx := context.Background()
+
+	// キーを適切なサイズに分割
+	batches := make([][]string, 0, (len(keys)+batchSize-1)/batchSize)
+	for i := 0; i < len(keys); i += batchSize {
+		end := min(i+batchSize, len(keys))
+		batches = append(batches, keys[i:end])
+	}
+
+	verbose.Printf("BulkFetchIssues: Total %d keys split into %d batches (max %d per batch)\n", len(keys), len(batches), batchSize)
+
+	// 並列でバッチ処理
+	p := pool.NewWithResults[[]*Issue]().WithContext(ctx).WithMaxGoroutines(5)
+	for batchIndex, batch := range batches {
+		batch := batch // ループ変数のキャプチャ
+		batchIndex := batchIndex
+		p.Go(func(ctx context.Context) ([]*Issue, error) {
+			verbose.Printf("Starting batch %d: fetching %d issues (%v)\n", batchIndex+1, len(batch), batch)
+			issues, err := c.bulkFetchBatch(ctx, batch)
+			if err != nil {
+				verbose.Printf("Batch %d failed: %v\n", batchIndex+1, err)
+				return nil, err
+			}
+			verbose.Printf("Batch %d completed: successfully fetched %d issues\n", batchIndex+1, len(issues))
+			return issues, nil
+		})
+	}
+
+	listOfIssues, err := p.Wait()
+	if err != nil {
+		return nil, err
+	}
+
+	// 結果をフラット化
+	allIssues := slices.Concat(listOfIssues...)
+
+	// IssueからTicketに変換
+	tickets := make([]*ticket.Ticket, 0, len(allIssues))
+	for _, issue := range allIssues {
+		ticket, err := convert(issue)
+		if err != nil {
+			return nil, err
+		}
+		tickets = append(tickets, ticket)
+	}
+
+	return tickets, nil
+}
+
+// bulkFetchBatch は単一バッチのチケットを取得します
+func (c *Client) bulkFetchBatch(ctx context.Context, keys []string) (_ []*Issue, err error) {
+	defer derrors.Wrap(&err)
+	verbose.Printf("bulkFetchBatch: Making API call for keys: %v\n", keys)
+
+	type BulkFetchRequest struct {
+		IssueIdsOrKeys []string `json:"issueIdsOrKeys"`
+		Fields         []string `json:"fields"`
+		FieldsByKeys   bool     `json:"fieldsByKeys"`
+	}
+
+	type BulkFetchResponse struct {
+		Issues []*Issue `json:"issues"`
+		Errors []struct {
+			IssueIDOrKey string `json:"issueIdOrKey"`
+			ErrorMessage string `json:"errorMessage"`
+		} `json:"errors"`
+	}
+
+	reqBody := BulkFetchRequest{
+		IssueIdsOrKeys: keys,
+		Fields: []string{
+			"issuetype",
+			"timeoriginalestimate",
+			"aggregatetimeoriginalestimate",
+			"summary",
+			"created",
+			"status",
+			"updated",
+			"assignee",
+			"description",
+			"reporter",
+			"parent",
+		},
+		FieldsByKeys: false,
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, err
+	}
+	body := bytes.NewReader(jsonBody)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.config.Server+"/rest/api/3/issue/bulkfetch", body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.SetBasicAuth(c.config.Login, getAPIToken())
+
+	client := &http.Client{}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.New("JIRA Bulk Fetch APIリクエストが失敗しました: " + resp.Status)
+	}
+
+	var result BulkFetchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	verbose.Printf("bulkFetchBatch: API response - got %d issues, %d errors\n", len(result.Issues), len(result.Errors))
+
+	// エラーがある場合はログに出力（部分的な成功も許可）
+	if len(result.Errors) > 0 {
+		for _, apiErr := range result.Errors {
+			verbose.Printf("Warning: Failed to fetch issue %s: %s\n", apiErr.IssueIDOrKey, apiErr.ErrorMessage)
+		}
+	}
+
+	return result.Issues, nil
+}

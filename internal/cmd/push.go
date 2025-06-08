@@ -75,19 +75,27 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 		}
 
 		// 差分があるチケットについては最新の状態をキャッシュに保存し直す。
+		// 新規作成以外のキーを収集
+		var keysToFetch []string
 		for _, diff := range changedTickets {
-			key := diff.Key
-			if key == "" {
-				// 新規作成なのでスキップ
-				continue
+			if diff.Key != "" {
+				keysToFetch = append(keysToFetch, diff.Key)
 			}
-			remoteTicket, err := jiraClient.FetchIssue(key)
+		}
+
+		// Bulk Fetch APIを使って一括取得
+		if len(keysToFetch) > 0 {
+			remoteTickets, err := jiraClient.BulkFetchIssues(keysToFetch)
 			if err != nil {
 				return err
 			}
-			_, err = remoteTicket.SaveToFile(cacheDir)
-			if err != nil {
-				return err
+
+			// 取得したチケットをキャッシュに保存
+			for _, remoteTicket := range remoteTickets {
+				_, err = remoteTicket.SaveToFile(cacheDir)
+				if err != nil {
+					return err
+				}
 			}
 		}
 
