@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/qawatake/tkt/internal/verbose"
 	"github.com/spf13/cobra"
 )
 
@@ -16,5 +17,5 @@ func Execute() error {
 }
 
 func init() {
-	// ここでグローバルフラグなどを設定する場合は追加
+	rootCmd.PersistentFlags().BoolVarP(&verbose.Enabled, "verbose", "v", false, "enable verbose output")
 }

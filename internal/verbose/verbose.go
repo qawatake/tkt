@@ -2,20 +2,9 @@ package verbose
 
 import (
 	"fmt"
-	"os"
 )
 
 var Enabled bool
-
-func init() {
-	// コマンドライン引数から-vフラグをチェック
-	for _, arg := range os.Args {
-		if arg == "-v" || arg == "--verbose" {
-			Enabled = true
-			break
-		}
-	}
-}
 
 func Printf(format string, args ...any) {
 	if Enabled {
