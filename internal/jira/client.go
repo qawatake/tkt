@@ -249,19 +249,22 @@ func (c *Client) UpdateIssue(ticket ticket.Ticket) error {
 }
 
 // CreateIssue は新しいJIRAチケットを作成します
-func (c *Client) CreateIssue(issueType, summary, description, parentKey string) (*jiralib.Issue, error) {
+func (c *Client) CreateIssue(ticket *ticket.Ticket) (*ticket.Ticket, error) {
 	// チケットタイプIDを取得
 	typeID := ""
 	for _, t := range c.config.Issue.Types {
-		if t.Handle == issueType {
+		if t.Handle == ticket.Type {
 			typeID = t.ID
 			break
 		}
 	}
 
 	if typeID == "" {
-		return nil, fmt.Errorf("チケットタイプが見つかりません: %s", issueType)
+		return nil, fmt.Errorf("チケットタイプが見つかりません: %s", ticket.Type)
 	}
+
+	// Markdown本文をJIRA記法に変換
+	jiraDescription := md.ToJiraMD(ticket.Body)
 
 	// チケット作成用のフィールドを準備
 	fields := jiralib.IssueFields{
@@ -271,14 +274,14 @@ func (c *Client) CreateIssue(issueType, summary, description, parentKey string) 
 		Type: jiralib.IssueType{
 			ID: typeID,
 		},
-		Summary:     summary,
-		Description: description,
+		Summary:     ticket.Title,
+		Description: jiraDescription,
 	}
 
 	// 親チケットがある場合は設定
-	if parentKey != "" {
+	if ticket.ParentKey != "" {
 		fields.Parent = &jiralib.Parent{
-			Key: parentKey,
+			Key: ticket.ParentKey,
 		}
 	}
 
@@ -292,7 +295,8 @@ func (c *Client) CreateIssue(issueType, summary, description, parentKey string) 
 		return nil, fmt.Errorf("JIRAチケットの作成に失敗しました: %v", err)
 	}
 
-	return newIssue, nil
+	// 作成されたチケットをfetchして正しいフォーマットで返す
+	return c.FetchIssue(newIssue.Key)
 }
 
 type SearchResult struct {

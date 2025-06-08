@@ -200,7 +200,7 @@ keyがチケットはリモートにないチケットのため、JIRAにチケ�
 						verbose.Printf("新規チケットを作成中: %s\n", localTicket.Title)
 
 						// JIRAにチケットを作成
-						newIssue, err := jiraClient.CreateIssue(localTicket.Type, localTicket.Title, localTicket.Body, localTicket.ParentKey)
+						createdTicket, err := jiraClient.CreateIssue(localTicket)
 						if err != nil {
 							return fmt.Errorf("チケット作成に失敗しました: %v", err)
 						}
@@ -209,7 +209,7 @@ keyがチケットはリモートにないチケットのため、JIRAにチケ�
 						originalFilePath := diff.FilePath
 
 						// ローカルファイルのKeyを更新
-						localTicket.Key = newIssue.Key
+						localTicket.Key = createdTicket.Key
 						newFilePath, err := localTicket.SaveToFile(pushDir)
 						if err != nil {
 							return fmt.Errorf("ローカルファイルの更新に失敗しました: %v", err)
@@ -225,14 +225,13 @@ keyがチケットはリモートにないチケットのため、JIRAにチケ�
 							}
 						}
 
-						// キャッシュも更新
-						remoteTicket := ticket.FromIssue(newIssue)
-						_, err = remoteTicket.SaveToFile(cacheDir)
+						// キャッシュも更新（CreateIssueが既に正しいフォーマットで返すため直接保存）
+						_, err = createdTicket.SaveToFile(cacheDir)
 						if err != nil {
 							return fmt.Errorf("キャッシュの更新に失敗しました: %v", err)
 						}
 
-						verbose.Printf("作成完了: %s\n", newIssue.Key)
+						verbose.Printf("作成完了: %s\n", createdTicket.Key)
 						mu.Lock()
 						createdCount++
 						mu.Unlock()
