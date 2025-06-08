@@ -1,8 +1,8 @@
-# gojira CLIアーキテクチャ設計
+# tkt CLIアーキテクチャ設計
 
 ## 1. 概要
 
-gojiraはJIRAチケットをローカルで編集し、それをJIRAに同期するためのCLIツールです。主な機能は以下の通りです：
+tktはJIRAチケットをローカルで編集し、それをJIRAに同期するためのCLIツールです。主な機能は以下の通りです：
 
 - `fetch`: JIRAチケットをローカルにダウンロード
 - `push`: ローカルでの編集差分をリモートのJIRAチケットに適用
@@ -11,9 +11,9 @@ gojiraはJIRAチケットをローカルで編集し、それをJIRAに同期す
 ## 2. ディレクトリ構造
 
 ```
-gojira/
+tkt/
 ├── cmd/
-│   └── gojira/
+│   └── tkt/
 │       └── main.go       # エントリーポイント
 ├── internal/
 │   ├── config/           # 設定ファイル関連
@@ -46,7 +46,7 @@ gojira/
 ### ルートコマンド
 
 ```
-gojira - JIRAチケットローカル同期CLI
+tkt - JIRAチケットローカル同期CLI
 ```
 
 ### サブコマンド
@@ -68,7 +68,7 @@ gojira - JIRAチケットローカル同期CLI
 
 ## 4. 設定ファイル管理
 
-設定ファイルは `~/.config/gojira/config.yml` に保存され、以下の情報を含みます：
+設定ファイルは `~/.config/tkt/config.yml` に保存され、以下の情報を含みます：
 
 ```yaml
 auth_type: basic  # basic, bearer, mtls
@@ -127,7 +127,7 @@ updated_at: 2023-01-02T12:00:00Z
 1. **fetch**:
    - JIRAからチケット情報を取得
    - マークダウンファイルに変換して保存
-   - キャッシュとして `~/.cache/gojira` にも保存
+   - キャッシュとして `~/.cache/tkt` にも保存
 
 2. **push**:
    - ローカルのマークダウンファイルを読み込み

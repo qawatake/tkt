@@ -5,11 +5,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gojira/gojira/internal/config"
-	"github.com/gojira/gojira/internal/jira"
-	"github.com/gojira/gojira/internal/ticket"
-	"github.com/gojira/gojira/internal/verbose"
-	"github.com/gojira/gojira/pkg/utils"
+	"github.com/qawatake/tkt/internal/config"
+	"github.com/qawatake/tkt/internal/jira"
+	"github.com/qawatake/tkt/internal/ticket"
+	"github.com/qawatake/tkt/internal/verbose"
+	"github.com/qawatake/tkt/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -28,7 +28,7 @@ fetchとmergeコマンドを組み合わせたコマンドです。`,
 		// outputDirが指定されていない場合は設定ファイルのディレクトリを使用
 		if outputDir == "" {
 			if cfg.Directory == "" {
-				return fmt.Errorf("設定ファイルにdirectoryが設定されていません。gojira initで設定してください")
+				return fmt.Errorf("設定ファイルにdirectoryが設定されていません。tkt initで設定してください")
 			}
 			outputDir = cfg.Directory
 		}

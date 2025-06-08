@@ -1,1 +1,1 @@
-specs/init.mdの#ARGUMENTSコめのtodoを実装してください。
+specs/push.mdの $ARGUMENTS コめのtodoを実装してください。

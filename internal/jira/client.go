@@ -13,13 +13,13 @@ import (
 
 	jiralib "github.com/andygrunwald/go-jira"
 	"github.com/ankitpokhrel/jira-cli/pkg/jira"
-	"github.com/gojira/gojira/internal/adf"
-	"github.com/gojira/gojira/internal/config"
-	"github.com/gojira/gojira/internal/derrors"
-	"github.com/gojira/gojira/internal/md"
-	"github.com/gojira/gojira/internal/ticket"
-	"github.com/gojira/gojira/internal/verbose"
 	"github.com/k1LoW/errors"
+	"github.com/qawatake/tkt/internal/adf"
+	"github.com/qawatake/tkt/internal/config"
+	"github.com/qawatake/tkt/internal/derrors"
+	"github.com/qawatake/tkt/internal/md"
+	"github.com/qawatake/tkt/internal/ticket"
+	"github.com/qawatake/tkt/internal/verbose"
 	"github.com/sourcegraph/conc/pool"
 )
 

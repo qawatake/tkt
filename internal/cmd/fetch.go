@@ -3,9 +3,9 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/gojira/gojira/internal/config"
-	"github.com/gojira/gojira/internal/jira"
-	"github.com/gojira/gojira/internal/verbose"
+	"github.com/qawatake/tkt/internal/config"
+	"github.com/qawatake/tkt/internal/jira"
+	"github.com/qawatake/tkt/internal/verbose"
 	"github.com/spf13/cobra"
 )
 
@@ -29,7 +29,7 @@ var fetchCmd = &cobra.Command{
 		// outputDirが指定されていない場合は設定ファイルのディレクトリを使用
 		if outputDir == "" {
 			if cfg.Directory == "" {
-				return fmt.Errorf("設定ファイルにdirectoryが設定されていません。gojira initで設定してください")
+				return fmt.Errorf("設定ファイルにdirectoryが設定されていません。tkt initで設定してください")
 			}
 			outputDir = cfg.Directory
 		}

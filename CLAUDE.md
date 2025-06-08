@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Gojira is a CLI tool for synchronizing JIRA tickets locally as Markdown files. The core workflow is:
+tkt is a CLI tool for synchronizing JIRA tickets locally as Markdown files. The core workflow is:
 1. `fetch` - Download JIRA tickets as Markdown files with frontmatter
 2. Edit tickets locally
 3. `push` - Sync changes back to JIRA
@@ -14,10 +14,10 @@ Gojira is a CLI tool for synchronizing JIRA tickets locally as Markdown files. T
 
 ```bash
 # Build the CLI
-go build ./cmd/gojira
+go build ./cmd/tkt
 
 # Run the CLI
-go run ./cmd/gojira <command>
+go run ./cmd/tkt <command>
 
 # Run tests
 go test ./...
@@ -35,7 +35,7 @@ go mod tidy
 The project uses a **current directory-based configuration** approach (not `~/.config`):
 
 - Configuration file: `ticket.yml` in current working directory
-- Create configuration: `gojira init` (interactive setup)
+- Create configuration: `tkt init` (interactive setup)
 - Configuration is loaded by `internal/config/config.go:LoadConfig()`
 
 **Important**: All commands expect `ticket.yml` in the current directory and will fail with a helpful error message if missing.
@@ -55,7 +55,7 @@ The project uses a **current directory-based configuration** approach (not `~/.c
 
 1. **JIRA API → ADF → Markdown**: JIRA tickets are fetched as ADF, converted to Markdown with frontmatter
 2. **Local Storage**: Tickets stored as `.md` files in `./tmp/` (configurable)
-3. **Cache**: Remote versions cached in `~/.cache/gojira/` for diff detection
+3. **Cache**: Remote versions cached in `~/.cache/tkt/` for diff detection
 4. **Sync**: Local changes detected by comparing with cache, then pushed to JIRA
 
 ### Document Conversion
@@ -115,8 +115,14 @@ Claudeは実装時に以下のルールに従ってください。
 - 作業完了時には必ず以下のすべてのコマンドを実行する。
   - `go mod tidy`
   - `goimports -w .`
-  - `go install ./cmd/gojira`
+  - `go install ./cmd/tkt`
 - 作業の完了を以下で伝える。
   - `afplay /System/Library/Sounds/Glass.aiff`
 - 作業中、ユーザになにかを問い合わせるときにはその前に通知を行う。
   - `afplay /System/Library/Sounds/Glass.aiff`
+
+## 用語集
+
+ユーザーが使う用語は以下のとおりです。
+
+- `impl`: 実装。例えば、`impl todo of @hoge.md`は「@hoge.mdのtodoを実装してください」という意味となります。

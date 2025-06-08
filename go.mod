@@ -1,4 +1,4 @@
-module github.com/gojira/gojira
+module github.com/qawatake/tkt
 
 go 1.24.3
 

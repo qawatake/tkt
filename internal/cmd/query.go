@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gojira/gojira/internal/config"
-	"github.com/gojira/gojira/internal/verbose"
-	"github.com/gojira/gojira/pkg/markdown"
+	"github.com/qawatake/tkt/internal/config"
+	"github.com/qawatake/tkt/internal/verbose"
+	"github.com/qawatake/tkt/pkg/markdown"
 	"github.com/spf13/cobra"
 )
 
@@ -37,7 +37,7 @@ REPLを終了すると一時ファイルは自動的に削除されます。`,
 		// queryDirが指定されていない場合は設定ファイルのディレクトリを使用
 		if queryDir == "" {
 			if cfg.Directory == "" {
-				return fmt.Errorf("設定ファイルにdirectoryが設定されていません。gojira initで設定してください")
+				return fmt.Errorf("設定ファイルにdirectoryが設定されていません。tkt initで設定してください")
 			}
 			queryDir = cfg.Directory
 		}
@@ -92,7 +92,7 @@ REPLを終了すると一時ファイルは自動的に削除されます。`,
 		verbose.Printf("%d 件のフロントマターを抽出しました\n", len(allFrontmatters))
 
 		// 4. 一時JSONファイルを作成
-		tempFile := filepath.Join("/tmp", fmt.Sprintf("gojira_query_%d.json", time.Now().Unix()))
+		tempFile := filepath.Join("/tmp", fmt.Sprintf("tkt_query_%d.json", time.Now().Unix()))
 		jsonData, err := json.MarshalIndent(allFrontmatters, "", "  ")
 		if err != nil {
 			return fmt.Errorf("JSON変換に失敗しました: %v", err)
@@ -113,7 +113,7 @@ REPLを終了すると一時ファイルは自動的に削除されます。`,
 
 		// 初期化SQLファイルを作成
 		initSQL := fmt.Sprintf("CREATE TABLE tickets AS SELECT * FROM read_json_auto('%s');", tempFile)
-		initFile := filepath.Join("/tmp", fmt.Sprintf("gojira_init_%d.sql", time.Now().Unix()))
+		initFile := filepath.Join("/tmp", fmt.Sprintf("tkt_init_%d.sql", time.Now().Unix()))
 		err = os.WriteFile(initFile, []byte(initSQL), 0644)
 		if err != nil {
 			os.Remove(tempFile)

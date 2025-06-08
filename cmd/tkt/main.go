@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gojira/gojira/internal/cmd"
 	"github.com/k1LoW/errors"
+	"github.com/qawatake/tkt/internal/cmd"
 
 	// サブコマンドを登録するため
-	_ "github.com/gojira/gojira/internal/cmd"
+	_ "github.com/qawatake/tkt/internal/cmd"
 )
 
 func main() {

@@ -4,7 +4,7 @@ package md_test
 import (
 	"testing"
 
-	bfconfluence "github.com/gojira/gojira/internal/md"
+	bfconfluence "github.com/qawatake/tkt/internal/md"
 	bf "github.com/russross/blackfriday/v2"
 	"github.com/stretchr/testify/assert"
 )

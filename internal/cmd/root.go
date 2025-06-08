@@ -5,9 +5,9 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "gojira",
+	Use:   "tkt",
 	Short: "JIRAチケットローカル同期CLI",
-	Long: `gojiraはJIRAチケットをローカルで編集し、それをJIRAに同期するCLIツールです。
+	Long: `tktはJIRAチケットをローカルで編集し、それをJIRAに同期するCLIツールです。
 主な機能は以下の通りです：
 - fetch: JIRAチケットをローカルにダウンロード
 - push: ローカルでの編集差分をリモートのJIRAチケットに適用

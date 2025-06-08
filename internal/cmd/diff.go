@@ -8,9 +8,9 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/gojira/gojira/internal/config"
-	"github.com/gojira/gojira/internal/ticket"
-	"github.com/gojira/gojira/internal/verbose"
+	"github.com/qawatake/tkt/internal/config"
+	"github.com/qawatake/tkt/internal/ticket"
+	"github.com/qawatake/tkt/internal/verbose"
 	"github.com/spf13/cobra"
 )
 
@@ -23,7 +23,7 @@ var diffCmd = &cobra.Command{
 	Use:   "diff",
 	Short: "ローカルとリモートのJIRAチケットの差分を表示",
 	Long: `ローカルで編集したJIRAチケットとリモートのJIRAチケットの差分を表示します。
-差分を計算する前に~/.cache/gojiraにリモートのチケットをfetchします。`,
+差分を計算する前に~/.cache/tktにリモートのチケットをfetchします。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// 1. 設定ファイルを読み込む
 		cfg, err := config.LoadConfig()
@@ -34,7 +34,7 @@ var diffCmd = &cobra.Command{
 		// diffDirが指定されていない場合は設定ファイルのディレクトリを使用
 		if diffDir == "" {
 			if cfg.Directory == "" {
-				return fmt.Errorf("設定ファイルにdirectoryが設定されていません。gojira initで設定してください")
+				return fmt.Errorf("設定ファイルにdirectoryが設定されていません。tkt initで設定してください")
 			}
 			diffDir = cfg.Directory
 		}

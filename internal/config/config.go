@@ -56,7 +56,7 @@ func LoadConfig() (*Config, error) {
 
 	// 設定ファイルが存在するか確認
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
-		return nil, fmt.Errorf("設定ファイルが見つかりません: %s\n'gojira init'コマンドで設定ファイルを作成してください", configFile)
+		return nil, fmt.Errorf("設定ファイルが見つかりません: %s\n'tkt init'コマンドで設定ファイルを作成してください", configFile)
 	}
 
 	// Viperの設定
@@ -79,7 +79,7 @@ func LoadConfig() (*Config, error) {
 
 // EnsureCacheDir はキャッシュディレクトリを確保します
 func EnsureCacheDir() (string, error) {
-	cacheDir := filepath.Join(os.Getenv("HOME"), ".cache", "gojira")
+	cacheDir := filepath.Join(os.Getenv("HOME"), ".cache", "tkt")
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
 		return "", fmt.Errorf("キャッシュディレクトリの作成に失敗しました: %v", err)
 	}

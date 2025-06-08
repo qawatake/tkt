@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/gojira/gojira/internal/config"
-	"github.com/gojira/gojira/internal/jira"
-	"github.com/gojira/gojira/internal/ticket"
-	"github.com/gojira/gojira/internal/verbose"
-	"github.com/gojira/gojira/pkg/utils"
+	"github.com/qawatake/tkt/internal/config"
+	"github.com/qawatake/tkt/internal/jira"
+	"github.com/qawatake/tkt/internal/ticket"
+	"github.com/qawatake/tkt/internal/verbose"
+	"github.com/qawatake/tkt/pkg/utils"
 	"github.com/sourcegraph/conc/pool"
 	"github.com/spf13/cobra"
 )
@@ -37,7 +37,7 @@ keyがないものはremoteにないチケットのため、JIRAにチケット�
 		// pushDirが指定されていない場合は設定ファイルのディレクトリを使用
 		if pushDir == "" {
 			if cfg.Directory == "" {
-				return fmt.Errorf("設定ファイルにdirectoryが設定されていません。gojira initで設定してください")
+				return fmt.Errorf("設定ファイルにdirectoryが設定されていません。tkt initで設定してください")
 			}
 			pushDir = cfg.Directory
 		}

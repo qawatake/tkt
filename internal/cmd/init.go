@@ -9,9 +9,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gojira/gojira/internal/config"
-	"github.com/gojira/gojira/internal/ui"
 	"github.com/ktr0731/go-fuzzyfinder"
+	"github.com/qawatake/tkt/internal/config"
+	"github.com/qawatake/tkt/internal/ui"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -46,7 +46,7 @@ type JiraBoard struct {
 func runInit() error {
 	scanner := bufio.NewScanner(os.Stdin)
 
-	fmt.Println("🔧 Gojira設定セットアップ")
+	fmt.Println("🔧 tkt設定セットアップ")
 	fmt.Println("=======================")
 
 	// 1. JIRAサーバーURLを入力
@@ -208,9 +208,6 @@ func runInit() error {
 	fmt.Printf("   設定ファイル: %s (カレントディレクトリ)\n", configFile)
 	fmt.Printf("   プロジェクト: %s (%s)\n", selectedProject.Name, selectedProject.Key)
 	fmt.Printf("   ボード: %s (ID: %d)\n", selectedBoard.Name, selectedBoard.ID)
-	fmt.Println("\n💡 使用方法:")
-	fmt.Println("   gojira fetch  # チケットを取得")
-	fmt.Println("   gojira push   # チケットを更新")
 
 	return nil
 }
