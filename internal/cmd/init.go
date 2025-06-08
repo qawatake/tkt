@@ -173,13 +173,26 @@ func runInit() error {
 		jqlInput = defaultJQL
 	}
 
-	// 9. 設定ファイルを作成
+	// 9. ディレクトリを入力
+	defaultDirectory := "tmp"
+	fmt.Printf("マークダウンファイル格納ディレクトリ (デフォルト: %s): ", defaultDirectory)
+	if !scanner.Scan() {
+		return fmt.Errorf("入力エラー")
+	}
+
+	directoryInput := strings.TrimSpace(scanner.Text())
+	if directoryInput == "" {
+		directoryInput = defaultDirectory
+	}
+
+	// 10. 設定ファイルを作成
 	cfg := &config.Config{
-		AuthType: "basic",
-		Login:    loginEmail,
-		Server:   serverURL,
-		JQL:      jqlInput,
-		Timezone: "Asia/Tokyo",
+		AuthType:  "basic",
+		Login:     loginEmail,
+		Server:    serverURL,
+		JQL:       jqlInput,
+		Timezone:  "Asia/Tokyo",
+		Directory: directoryInput,
 	}
 
 	// Project情報を設定
@@ -191,7 +204,7 @@ func runInit() error {
 	cfg.Board.Name = selectedBoard.Name
 	cfg.Board.Type = selectedBoard.Type
 
-	// 9. 設定ファイルを保存 (ticket.ymlをカレントディレクトリに作成)
+	// 11. 設定ファイルを保存 (ticket.ymlをカレントディレクトリに作成)
 	configFile := "ticket.yml"
 	data, err := yaml.Marshal(cfg)
 	if err != nil {

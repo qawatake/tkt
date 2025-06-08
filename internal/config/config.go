@@ -44,8 +44,9 @@ type Config struct {
 			Subtask bool   `mapstructure:"subtask" yaml:"subtask"`
 		} `mapstructure:"types" yaml:"types"`
 	} `mapstructure:"issue" yaml:"issue"`
-	JQL      string `mapstructure:"jql" yaml:"jql"`
-	Timezone string `mapstructure:"timezone" yaml:"timezone"`
+	JQL       string `mapstructure:"jql" yaml:"jql"`
+	Timezone  string `mapstructure:"timezone" yaml:"timezone"`
+	Directory string `mapstructure:"directory" yaml:"directory"`
 }
 
 // LoadConfig は設定ファイルを読み込みます

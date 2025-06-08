@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gojira/gojira/internal/config"
 	"github.com/gojira/gojira/internal/verbose"
 	"github.com/gojira/gojira/pkg/markdown"
 	"github.com/spf13/cobra"
@@ -27,9 +28,23 @@ var queryCmd = &cobra.Command{
 DuckDBのREPLを起動してSQLクエリを実行できます。
 REPLを終了すると一時ファイルは自動的に削除されます。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// 1. マークダウンファイルを検索
+		// 1. 設定ファイルを読み込む
+		cfg, err := config.LoadConfig()
+		if err != nil {
+			return fmt.Errorf("設定ファイルの読み込みに失敗しました: %v", err)
+		}
+
+		// queryDirが指定されていない場合は設定ファイルのディレクトリを使用
+		if queryDir == "" {
+			queryDir = cfg.Directory
+			if queryDir == "" {
+				queryDir = "./tmp" // フォールバック
+			}
+		}
+
+		// 2. マークダウンファイルを検索
 		var markdownFiles []string
-		err := filepath.WalkDir(queryDir, func(path string, d fs.DirEntry, err error) error {
+		err = filepath.WalkDir(queryDir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -48,7 +63,7 @@ REPLを終了すると一時ファイルは自動的に削除されます。`,
 
 		verbose.Printf("%d 件のマークダウンファイルを発見しました\n", len(markdownFiles))
 
-		// 2. フロントマターを抽出してJSONに変換
+		// 3. フロントマターを抽出してJSONに変換
 		var allFrontmatters []map[string]interface{}
 		for _, file := range markdownFiles {
 			content, err := os.ReadFile(file)
@@ -76,7 +91,7 @@ REPLを終了すると一時ファイルは自動的に削除されます。`,
 
 		verbose.Printf("%d 件のフロントマターを抽出しました\n", len(allFrontmatters))
 
-		// 3. 一時JSONファイルを作成
+		// 4. 一時JSONファイルを作成
 		tempFile := filepath.Join("/tmp", fmt.Sprintf("gojira_query_%d.json", time.Now().Unix()))
 		jsonData, err := json.MarshalIndent(allFrontmatters, "", "  ")
 		if err != nil {
@@ -90,7 +105,7 @@ REPLを終了すると一時ファイルは自動的に削除されます。`,
 
 		verbose.Printf("一時ファイルを作成しました: %s\n", tempFile)
 
-		// 4. DuckDBのREPLを起動
+		// 5. DuckDBのREPLを起動
 		verbose.Println("DuckDBのREPLを起動中...")
 		verbose.Printf("データベースのテーブル名: tickets\n")
 		verbose.Printf("使用例: SELECT * FROM tickets WHERE status = 'To Do';\n")
@@ -117,7 +132,7 @@ REPLを終了すると一時ファイルは自動的に削除されます。`,
 		// 初期化ファイルも削除
 		os.Remove(initFile)
 
-		// 5. 一時ファイルを削除
+		// 6. 一時ファイルを削除
 		os.Remove(tempFile)
 		verbose.Printf("\n一時ファイルを削除しました: %s\n", tempFile)
 
@@ -139,5 +154,5 @@ func init() {
 	rootCmd.AddCommand(queryCmd)
 
 	// フラグの設定
-	queryCmd.Flags().StringVarP(&queryDir, "dir", "d", "./tmp", "検索対象ディレクトリ")
+	queryCmd.Flags().StringVarP(&queryDir, "dir", "d", "", "検索対象ディレクトリ")
 }

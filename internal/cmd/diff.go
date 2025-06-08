@@ -25,6 +25,20 @@ var diffCmd = &cobra.Command{
 	Long: `ローカルで編集したJIRAチケットとリモートのJIRAチケットの差分を表示します。
 差分を計算する前に~/.cache/gojiraにリモートのチケットをfetchします。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// 1. 設定ファイルを読み込む
+		cfg, err := config.LoadConfig()
+		if err != nil {
+			return fmt.Errorf("設定ファイルの読み込みに失敗しました: %v", err)
+		}
+
+		// diffDirが指定されていない場合は設定ファイルのディレクトリを使用
+		if diffDir == "" {
+			diffDir = cfg.Directory
+			if diffDir == "" {
+				diffDir = "./tmp" // フォールバック
+			}
+		}
+
 		verbose.Printf("ローカルとリモートのJIRAチケットの差分を表示します（ディレクトリ: %s, フォーマット: %s）\n", diffDir, diffFormat)
 
 		// 2. キャッシュディレクトリを確保
@@ -148,6 +162,6 @@ func init() {
 	rootCmd.AddCommand(diffCmd)
 
 	// フラグの設定
-	diffCmd.Flags().StringVarP(&diffDir, "dir", "d", "./tmp", "比較対象のローカルディレクトリ")
+	diffCmd.Flags().StringVarP(&diffDir, "dir", "d", "", "比較対象のローカルディレクトリ")
 	diffCmd.Flags().StringVarP(&diffFormat, "format", "f", "text", "出力フォーマット (text|json)")
 }

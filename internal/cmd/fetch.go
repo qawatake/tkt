@@ -26,6 +26,14 @@ var fetchCmd = &cobra.Command{
 			return fmt.Errorf("設定ファイルの読み込みに失敗しました: %v", err)
 		}
 
+		// outputDirが指定されていない場合は設定ファイルのディレクトリを使用
+		if outputDir == "" {
+			outputDir = cfg.Directory
+			if outputDir == "" {
+				outputDir = "./tmp" // フォールバック
+			}
+		}
+
 		// 設定情報をデバッグ表示
 		verbose.Printf("JIRA Server: %s\n", cfg.Server)
 		verbose.Printf("Project Key: %s\n", cfg.Project.Key)
@@ -79,5 +87,5 @@ func init() {
 	rootCmd.AddCommand(fetchCmd)
 
 	// フラグの設定
-	fetchCmd.Flags().StringVarP(&outputDir, "output", "o", "./tmp", "出力ディレクトリ")
+	fetchCmd.Flags().StringVarP(&outputDir, "output", "o", "", "出力ディレクトリ")
 }

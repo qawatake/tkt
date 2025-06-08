@@ -20,6 +20,20 @@ var mergeCmd = &cobra.Command{
 	Use:   "merge",
 	Short: "キャッシュにあるリモートのコピーでローカルのJIRAチケットを上書きします。",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// 1. 設定ファイルを読み込む
+		cfg, err := config.LoadConfig()
+		if err != nil {
+			return fmt.Errorf("設定ファイルの読み込みに失敗しました: %v", err)
+		}
+
+		// outputDirが指定されていない場合は設定ファイルのディレクトリを使用
+		if outputDir == "" {
+			outputDir = cfg.Directory
+			if outputDir == "" {
+				outputDir = "./tmp" // フォールバック
+			}
+		}
+
 		verbose.Printf("JIRAチケットを %s にマージします\n", outputDir)
 
 		// 出力ディレクトリを確保
@@ -27,7 +41,7 @@ var mergeCmd = &cobra.Command{
 			return fmt.Errorf("出力ディレクトリの作成に失敗しました: %v", err)
 		}
 
-		// 5. キャッシュディレクトリを確保
+		// 2. キャッシュディレクトリを確保
 		cacheDir, err := config.EnsureCacheDir()
 		if err != nil {
 			return fmt.Errorf("キャッシュディレクトリの作成に失敗しました: %v", err)

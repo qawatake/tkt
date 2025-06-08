@@ -23,13 +23,21 @@ var pushCmd = &cobra.Command{
 ローカルにfetchしたものと差分があるファイルだけ更新します。
 keyがないものはremoteにないチケットのため、JIRAにチケットを作成したあとにファイルのkeyを更新します。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		verbose.Printf("ローカルの編集差分を %s からJIRAに適用します\n", pushDir)
-
 		// 1. 設定ファイルを読み込む
 		cfg, err := config.LoadConfig()
 		if err != nil {
 			return fmt.Errorf("設定ファイルの読み込みに失敗しました: %v", err)
 		}
+
+		// pushDirが指定されていない場合は設定ファイルのディレクトリを使用
+		if pushDir == "" {
+			pushDir = cfg.Directory
+			if pushDir == "" {
+				pushDir = "./tmp" // フォールバック
+			}
+		}
+
+		verbose.Printf("ローカルの編集差分を %s からJIRAに適用します\n", pushDir)
 
 		// 2. キャッシュディレクトリを確保
 		cacheDir, err := config.EnsureCacheDir()
@@ -186,6 +194,6 @@ func init() {
 	rootCmd.AddCommand(pushCmd)
 
 	// フラグの設定
-	pushCmd.Flags().StringVarP(&pushDir, "dir", "d", "./tmp", "チケットディレクトリ")
+	pushCmd.Flags().StringVarP(&pushDir, "dir", "d", "", "チケットディレクトリ")
 	pushCmd.Flags().BoolVar(&dryRun, "dry-run", false, "実際に適用せずに差分のみ表示")
 }
