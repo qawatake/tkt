@@ -4,7 +4,6 @@ go 1.24.3
 
 require (
 	github.com/Code-Hex/dd v1.1.0
-	github.com/JohannesKaufmann/html-to-markdown/v2 v2.3.3
 	github.com/andygrunwald/go-jira v1.16.0
 	github.com/ankitpokhrel/jira-cli v1.6.0
 	github.com/briandowns/spinner v1.23.2
@@ -21,7 +20,6 @@ require (
 )
 
 require (
-	github.com/JohannesKaufmann/dom v0.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fatih/structs v1.1.0 // indirect
@@ -51,7 +49,6 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/trivago/tgo v1.0.7 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/net v0.39.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/term v0.31.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
