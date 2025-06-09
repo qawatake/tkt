@@ -298,9 +298,9 @@ func (m grepModel) View() string {
 	// レイアウト計算（3ペイン構成）
 	headerHeight := lipgloss.Height(header)
 	availableHeight := m.height - headerHeight
-	leftWidth := m.width / 4                        // 左ペインを1/4に縮小
-	rightWidth := m.width / 4                       // 右ペイン（フロントマター）を1/4
-	centerWidth := m.width - leftWidth - rightWidth // 中央ペインは残り
+	leftWidth := m.width * 3 / 8                   // 左ペインを3/8に拡大
+	rightWidth := m.width / 6                       // 右ペイン（フロントマター）を1/6に縮小
+	centerWidth := m.width - leftWidth - rightWidth // 中央ペインは残り（約5/12）
 
 	// 左ペイン（チケット一覧）
 	leftPane := m.renderLeftPane(leftWidth-2, availableHeight-2)
@@ -349,9 +349,17 @@ func (m grepModel) renderLeftPane(width, height int) string {
 			line = fmt.Sprintf("%s %s", keyPadded, item.title)
 		}
 
-		// 幅に合わせてトリミング
-		if len(line) > width {
-			line = line[:width-3] + "..."
+		// 幅に合わせてトリミング（rune width対応）
+		if lipgloss.Width(line) > width {
+			// rune単位で適切にトリミング
+			runes := []rune(line)
+			for i := len(runes); i > 0; i-- {
+				truncated := string(runes[:i])
+				if lipgloss.Width(truncated+"...") <= width {
+					line = truncated + "..."
+					break
+				}
+			}
 		}
 
 		if i == m.cursor {
@@ -398,8 +406,16 @@ func (m grepModel) renderCenterPane(width, height int) string {
 	var items []string
 	for i := 0; i < height && i < len(lines); i++ {
 		line := lines[i]
-		if len(line) > width {
-			line = line[:width-3] + "..."
+		if lipgloss.Width(line) > width {
+			// rune単位で適切にトリミング
+			runes := []rune(line)
+			for j := len(runes); j > 0; j-- {
+				truncated := string(runes[:j])
+				if lipgloss.Width(truncated+"...") <= width {
+					line = truncated + "..."
+					break
+				}
+			}
 		}
 
 		// マークダウンのヘッダーをハイライト
@@ -536,10 +552,20 @@ func (m grepModel) renderRightPane(width, height int) string {
 			Render("Metadata not available"))
 	}
 
-	// 各行を幅に合わせてトリミング
+	// 各行を幅に合わせてトリミング（rune width対応）
 	for i, item := range items {
 		if lipgloss.Width(item) > width {
-			items[i] = item[:width-3] + "..."
+			// rune単位で適切にトリミング
+			runes := []rune(item)
+			for j := len(runes); j > 0; j-- {
+				truncated := string(runes[:j])
+				if lipgloss.Width(truncated+"...") <= width {
+					items[i] = truncated + "..."
+					break
+				}
+			}
+		} else {
+			items[i] = item
 		}
 		items[i] = lipgloss.NewStyle().Width(width).Render(items[i])
 	}
