@@ -245,9 +245,8 @@ func (m grepModel) View() string {
 	// ヘッダー部分
 	searchDisplay := searchStyle.Render(fmt.Sprintf("Search: %s_", m.searchQuery))
 	helpText := helpStyle.Render(fmt.Sprintf("Found %d tickets • ctrl+p/n or ↑/↓:navigate • ctrl+h:delete • ctrl+k:clear • enter:select • ctrl+c:quit", len(m.filteredItems)))
-	
+
 	header := lipgloss.JoinVertical(lipgloss.Left,
-		titleStyle.Render("Ticket Grep"),
 		searchDisplay,
 		helpText,
 		"",
@@ -269,15 +268,15 @@ func (m grepModel) View() string {
 	// 左ペイン（チケット一覧）
 	leftPane := m.renderLeftPane(leftWidth-2, availableHeight-2)
 	leftPaneStyled := borderStyle.
-		Width(leftWidth-2).
-		Height(availableHeight-2).
+		Width(leftWidth - 2).
+		Height(availableHeight - 2).
 		Render(leftPane)
 
 	// 右ペイン（チケット内容）
 	rightPane := m.renderRightPane(rightWidth-2, availableHeight-2)
 	rightPaneStyled := borderStyle.
-		Width(rightWidth-2).
-		Height(availableHeight-2).
+		Width(rightWidth - 2).
+		Height(availableHeight - 2).
 		Render(rightPane)
 
 	// 左右のペインを横に並べる
@@ -297,12 +296,12 @@ func (m grepModel) renderLeftPane(width, height int) string {
 	for i := start; i < start+height && i < len(m.filteredItems); i++ {
 		item := m.filteredItems[i]
 		line := item.key
-		
+
 		// タイトルがある場合は表示
 		if item.title != "" {
 			line = fmt.Sprintf("%s - %s", item.key, item.title)
 		}
-		
+
 		// 幅に合わせてトリミング
 		if len(line) > width {
 			line = line[:width-3] + "..."
@@ -313,7 +312,7 @@ func (m grepModel) renderLeftPane(width, height int) string {
 		} else {
 			line = lipgloss.NewStyle().Width(width).Render(line)
 		}
-		
+
 		items = append(items, line)
 	}
 
@@ -332,15 +331,15 @@ func (m grepModel) renderRightPane(width, height int) string {
 			Width(width).
 			Align(lipgloss.Center).
 			Render("No ticket selected")
-		
+
 		var items []string
 		items = append(items, emptyMsg)
-		
+
 		// 残りの高さを空行で埋める
 		for len(items) < height {
 			items = append(items, lipgloss.NewStyle().Width(width).Render(""))
 		}
-		
+
 		return strings.Join(items, "\n")
 	}
 
@@ -353,7 +352,7 @@ func (m grepModel) renderRightPane(width, height int) string {
 		if len(line) > width {
 			line = line[:width-3] + "..."
 		}
-		
+
 		// マークダウンのヘッダーをハイライト
 		if strings.HasPrefix(line, "#") {
 			line = lipgloss.NewStyle().
@@ -361,7 +360,7 @@ func (m grepModel) renderRightPane(width, height int) string {
 				Foreground(lipgloss.Color("33")).
 				Render(line)
 		}
-		
+
 		items = append(items, lipgloss.NewStyle().Width(width).Render(line))
 	}
 
