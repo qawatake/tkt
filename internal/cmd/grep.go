@@ -249,7 +249,6 @@ func (m grepModel) View() string {
 	header := lipgloss.JoinVertical(lipgloss.Left,
 		searchDisplay,
 		helpText,
-		"",
 	)
 
 	if len(m.filteredItems) == 0 {
