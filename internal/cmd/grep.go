@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -62,6 +63,11 @@ type ticketItem struct {
 }
 
 func newGrepModel(tickets []*ticket.Ticket) grepModel {
+	// updated_atの降順でソート
+	sort.Slice(tickets, func(i, j int) bool {
+		return tickets[i].UpdatedAt.After(tickets[j].UpdatedAt)
+	})
+
 	items := make([]ticketItem, len(tickets))
 	for i, t := range tickets {
 		items[i] = ticketItem{
