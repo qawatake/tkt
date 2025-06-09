@@ -77,12 +77,19 @@ func newGrepModel(tickets []*ticket.Ticket) grepModel {
 		}
 	}
 
-	return grepModel{
+	model := grepModel{
 		tickets:       items,
 		filteredItems: items,
 		searchQuery:   "",
 		cursor:        0,
 	}
+
+	// 初期状態で最初のファイルを確実に選択
+	if len(items) > 0 {
+		model.cursor = 0
+	}
+
+	return model
 }
 
 func (m grepModel) Init() tea.Cmd {
@@ -202,6 +209,10 @@ func (m grepModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *grepModel) filterItems() {
 	if m.searchQuery == "" {
 		m.filteredItems = m.tickets
+		// 初期状態では最初のファイルを選択
+		if len(m.filteredItems) > 0 && m.cursor >= len(m.filteredItems) {
+			m.cursor = 0
+		}
 		return
 	}
 
@@ -215,6 +226,11 @@ func (m *grepModel) filterItems() {
 		}
 	}
 	m.filteredItems = filtered
+
+	// フィルタリング後、カーソルが範囲外の場合は先頭に移動
+	if len(m.filteredItems) > 0 && m.cursor >= len(m.filteredItems) {
+		m.cursor = 0
+	}
 }
 
 var (
