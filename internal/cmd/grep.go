@@ -74,7 +74,7 @@ func newGrepModel(tickets []*ticket.Ticket, configDir string) grepModel {
 		items[i] = ticketItem{
 			key:     t.Key,
 			title:   t.Title,
-			content: t.ToMarkdown(),
+			content: t.Body, // フロントマターを除いた本文のみ
 		}
 	}
 
@@ -391,6 +391,8 @@ func (m grepModel) renderCenterPane(width, height int) string {
 	}
 
 	content := m.filteredItems[m.cursor].content
+	// 先頭の空行をtrim
+	content = strings.TrimLeft(content, "\n")
 	lines := strings.Split(content, "\n")
 
 	var items []string
