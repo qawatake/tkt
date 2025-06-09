@@ -40,7 +40,7 @@ var grepCmd = &cobra.Command{
 		}
 
 		// Bubble Teaアプリを起動
-		model := newGrepModel(tickets)
+		model := newGrepModel(tickets, cfg.Directory)
 		p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 		_, err = p.Run()
 		return err
@@ -54,6 +54,7 @@ type grepModel struct {
 	cursor        int
 	width         int
 	height        int
+	configDir     string // 設定されたディレクトリを保持
 }
 
 type ticketItem struct {
@@ -62,7 +63,7 @@ type ticketItem struct {
 	content string
 }
 
-func newGrepModel(tickets []*ticket.Ticket) grepModel {
+func newGrepModel(tickets []*ticket.Ticket, configDir string) grepModel {
 	// updated_atの降順でソート
 	sort.Slice(tickets, func(i, j int) bool {
 		return tickets[i].UpdatedAt.After(tickets[j].UpdatedAt)
@@ -82,6 +83,7 @@ func newGrepModel(tickets []*ticket.Ticket) grepModel {
 		filteredItems: items,
 		searchQuery:   "",
 		cursor:        0,
+		configDir:     configDir,
 	}
 
 	// 初期状態で最初のファイルを確実に選択
@@ -293,11 +295,12 @@ func (m grepModel) View() string {
 		return lipgloss.JoinVertical(lipgloss.Left, header, emptyMsg)
 	}
 
-	// レイアウト計算
+	// レイアウト計算（3ペイン構成）
 	headerHeight := lipgloss.Height(header)
 	availableHeight := m.height - headerHeight
-	leftWidth := m.width / 2
-	rightWidth := m.width - leftWidth
+	leftWidth := m.width / 4                        // 左ペインを1/4に縮小
+	rightWidth := m.width / 4                       // 右ペイン（フロントマター）を1/4
+	centerWidth := m.width - leftWidth - rightWidth // 中央ペインは残り
 
 	// 左ペイン（チケット一覧）
 	leftPane := m.renderLeftPane(leftWidth-2, availableHeight-2)
@@ -306,15 +309,22 @@ func (m grepModel) View() string {
 		Height(availableHeight - 2).
 		Render(leftPane)
 
-	// 右ペイン（チケット内容）
+	// 中央ペイン（チケット内容）
+	centerPane := m.renderCenterPane(centerWidth-2, availableHeight-2)
+	centerPaneStyled := borderStyle.
+		Width(centerWidth - 2).
+		Height(availableHeight - 2).
+		Render(centerPane)
+
+	// 右ペイン（フロントマター）
 	rightPane := m.renderRightPane(rightWidth-2, availableHeight-2)
 	rightPaneStyled := borderStyle.
 		Width(rightWidth - 2).
 		Height(availableHeight - 2).
 		Render(rightPane)
 
-	// 左右のペインを横に並べる
-	body := lipgloss.JoinHorizontal(lipgloss.Top, leftPaneStyled, rightPaneStyled)
+	// 3つのペインを横に並べる
+	body := lipgloss.JoinHorizontal(lipgloss.Top, leftPaneStyled, centerPaneStyled, rightPaneStyled)
 
 	return lipgloss.JoinVertical(lipgloss.Left, header, body)
 }
@@ -361,7 +371,7 @@ func (m grepModel) renderLeftPane(width, height int) string {
 	return strings.Join(items, "\n")
 }
 
-func (m grepModel) renderRightPane(width, height int) string {
+func (m grepModel) renderCenterPane(width, height int) string {
 	if len(m.filteredItems) == 0 || m.cursor >= len(m.filteredItems) {
 		emptyMsg := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("241")).
@@ -399,6 +409,137 @@ func (m grepModel) renderRightPane(width, height int) string {
 		}
 
 		items = append(items, lipgloss.NewStyle().Width(width).Render(line))
+	}
+
+	// 残りの高さを空行で埋める
+	for len(items) < height {
+		items = append(items, lipgloss.NewStyle().Width(width).Render(""))
+	}
+
+	return strings.Join(items, "\n")
+}
+
+func (m grepModel) renderRightPane(width, height int) string {
+	if len(m.filteredItems) == 0 || m.cursor >= len(m.filteredItems) {
+		emptyMsg := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("241")).
+			Width(width).
+			Align(lipgloss.Center).
+			Render("No metadata")
+
+		var items []string
+		items = append(items, emptyMsg)
+
+		// 残りの高さを空行で埋める
+		for len(items) < height {
+			items = append(items, lipgloss.NewStyle().Width(width).Render(""))
+		}
+
+		return strings.Join(items, "\n")
+	}
+
+	// 選択されたチケットのkeyからticketオブジェクトを取得
+	selectedKey := m.filteredItems[m.cursor].key
+	var selectedTicket *ticket.Ticket
+
+	// チケット情報からフロントマター情報を取得
+	for _, t := range m.tickets {
+		if t.key == selectedKey {
+			// ファイルからTicketを読み込んでフロントマター情報を取得
+			if ticketData, err := ticket.FromFile(filepath.Join(m.configDir, t.key+".md")); err == nil {
+				selectedTicket = ticketData
+			}
+			break
+		}
+	}
+
+	var items []string
+
+	if selectedTicket != nil {
+		// フロントマター情報を表示
+		frontmatterStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("33"))
+		valueStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+
+		items = append(items, frontmatterStyle.Render("Metadata"))
+		items = append(items, "")
+
+		if selectedTicket.Key != "" {
+			items = append(items, fmt.Sprintf("%s: %s",
+				frontmatterStyle.Render("Key"),
+				valueStyle.Render(selectedTicket.Key)))
+		}
+
+		if selectedTicket.Type != "" {
+			items = append(items, fmt.Sprintf("%s: %s",
+				frontmatterStyle.Render("Type"),
+				valueStyle.Render(selectedTicket.Type)))
+		}
+
+		if selectedTicket.Status != "" {
+			items = append(items, fmt.Sprintf("%s: %s",
+				frontmatterStyle.Render("Status"),
+				valueStyle.Render(selectedTicket.Status)))
+		}
+
+		if selectedTicket.Assignee != "" {
+			items = append(items, fmt.Sprintf("%s: %s",
+				frontmatterStyle.Render("Assignee"),
+				valueStyle.Render(selectedTicket.Assignee)))
+		}
+
+		if selectedTicket.Reporter != "" {
+			items = append(items, fmt.Sprintf("%s: %s",
+				frontmatterStyle.Render("Reporter"),
+				valueStyle.Render(selectedTicket.Reporter)))
+		}
+
+		// Parentを常に表示（設定されていない場合は"None"）
+		if selectedTicket.ParentKey != "" {
+			items = append(items, fmt.Sprintf("%s: %s",
+				frontmatterStyle.Render("Parent"),
+				valueStyle.Render(selectedTicket.ParentKey)))
+		} else {
+			items = append(items, fmt.Sprintf("%s: %s",
+				frontmatterStyle.Render("Parent"),
+				valueStyle.Render("None")))
+		}
+
+		// Original Estimateを0でも表示（設定されていない場合は"None"）
+		if selectedTicket.OriginalEstimate > 0 {
+			items = append(items, fmt.Sprintf("%s: %s",
+				frontmatterStyle.Render("Estimate"),
+				valueStyle.Render(fmt.Sprintf("%.1fh", float64(selectedTicket.OriginalEstimate)))))
+		} else {
+			items = append(items, fmt.Sprintf("%s: %s",
+				frontmatterStyle.Render("Estimate"),
+				valueStyle.Render("None")))
+		}
+
+		items = append(items, "") // 区切り線
+
+		if !selectedTicket.CreatedAt.IsZero() {
+			items = append(items, fmt.Sprintf("%s: %s",
+				frontmatterStyle.Render("Created"),
+				valueStyle.Render(selectedTicket.CreatedAt.Format("2006-01-02"))))
+		}
+
+		if !selectedTicket.UpdatedAt.IsZero() {
+			items = append(items, fmt.Sprintf("%s: %s",
+				frontmatterStyle.Render("Updated"),
+				valueStyle.Render(selectedTicket.UpdatedAt.Format("2006-01-02"))))
+		}
+	} else {
+		items = append(items, lipgloss.NewStyle().
+			Foreground(lipgloss.Color("241")).
+			Render("Metadata not available"))
+	}
+
+	// 各行を幅に合わせてトリミング
+	for i, item := range items {
+		if lipgloss.Width(item) > width {
+			items[i] = item[:width-3] + "..."
+		}
+		items[i] = lipgloss.NewStyle().Width(width).Render(items[i])
 	}
 
 	// 残りの高さを空行で埋める
