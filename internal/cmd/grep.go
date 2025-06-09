@@ -295,11 +295,14 @@ func (m grepModel) renderLeftPane(width, height int) string {
 
 	for i := start; i < start+height && i < len(m.filteredItems); i++ {
 		item := m.filteredItems[i]
-		line := item.key
+
+		// キーを固定幅（12文字）で左詰めパディング
+		keyPadded := fmt.Sprintf("%-12s", item.key)
+		line := keyPadded
 
 		// タイトルがある場合は表示
 		if item.title != "" {
-			line = fmt.Sprintf("%s - %s", item.key, item.title)
+			line = fmt.Sprintf("%s %s", keyPadded, item.title)
 		}
 
 		// 幅に合わせてトリミング
