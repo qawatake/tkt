@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/qawatake/tkt/internal/config"
 	"github.com/qawatake/tkt/internal/ticket"
 	"github.com/spf13/cobra"
@@ -39,7 +40,7 @@ var grepCmd = &cobra.Command{
 
 		// Bubble Teaアプリを起動
 		model := newGrepModel(tickets)
-		p := tea.NewProgram(model, tea.WithAltScreen())
+		p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 		_, err = p.Run()
 		return err
 	},
@@ -79,7 +80,7 @@ func newGrepModel(tickets []*ticket.Ticket) grepModel {
 }
 
 func (m grepModel) Init() tea.Cmd {
-	return nil
+	return tea.ClearScreen
 }
 
 func (m grepModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -91,23 +92,23 @@ func (m grepModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q", "esc":
+		case "ctrl+c":
 			return m, tea.Quit
-
-		case "up", "k":
-			if m.cursor > 0 {
-				m.cursor--
-			}
-
-		case "down", "j":
-			if m.cursor < len(m.filteredItems)-1 {
-				m.cursor++
-			}
 
 		case "enter":
 			return m, tea.Quit
 
-		case "backspace":
+		case "up", "ctrl+p":
+			if m.cursor > 0 {
+				m.cursor--
+			}
+
+		case "down", "ctrl+n":
+			if m.cursor < len(m.filteredItems)-1 {
+				m.cursor++
+			}
+
+		case "backspace", "ctrl+h":
 			if len(m.searchQuery) > 0 {
 				m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
 				m.filterItems()
@@ -119,11 +120,72 @@ func (m grepModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-		default:
-			if len(msg.String()) == 1 {
-				m.searchQuery += msg.String()
+		case "ctrl+k":
+			// 検索クエリをクリア
+			m.searchQuery = ""
+			m.filterItems()
+			m.cursor = 0
+
+		case "ctrl+u":
+			// 検索クエリをクリア
+			m.searchQuery = ""
+			m.filterItems()
+			m.cursor = 0
+
+		case "ctrl+w":
+			if len(m.searchQuery) > 0 {
+				// 最後の単語を削除
+				parts := strings.Fields(m.searchQuery)
+				if len(parts) > 1 {
+					m.searchQuery = strings.Join(parts[:len(parts)-1], " ") + " "
+				} else {
+					m.searchQuery = ""
+				}
 				m.filterItems()
-				m.cursor = 0
+				if m.cursor >= len(m.filteredItems) {
+					m.cursor = len(m.filteredItems) - 1
+				}
+				if m.cursor < 0 {
+					m.cursor = 0
+				}
+			}
+
+		case "ctrl+d":
+			if len(m.searchQuery) > 0 {
+				// 一文字削除
+				m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
+				m.filterItems()
+				if m.cursor >= len(m.filteredItems) {
+					m.cursor = len(m.filteredItems) - 1
+				}
+				if m.cursor < 0 {
+					m.cursor = 0
+				}
+			}
+
+		case "page_up":
+			// ページアップ
+			for i := 0; i < 10 && m.cursor > 0; i++ {
+				m.cursor--
+			}
+
+		case "page_down":
+			// ページダウン
+			for i := 0; i < 10 && m.cursor < len(m.filteredItems)-1; i++ {
+				m.cursor++
+			}
+
+		default:
+			// escapeキーとqキーも含めて、すべての一文字入力を検索文字として扱う
+			if len(msg.String()) == 1 || msg.String() == "esc" {
+				if msg.String() == "esc" {
+					// escapeキーは文字として扱えないので、別の文字に置き換える
+					// または無視する
+				} else {
+					m.searchQuery += msg.String()
+					m.filterItems()
+					m.cursor = 0
+				}
 			}
 		}
 	}
@@ -149,63 +211,83 @@ func (m *grepModel) filterItems() {
 	m.filteredItems = filtered
 }
 
+var (
+	titleStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("205"))
+
+	searchStyle = lipgloss.NewStyle().
+			Background(lipgloss.Color("240")).
+			Foreground(lipgloss.Color("230")).
+			Padding(0, 1)
+
+	selectedStyle = lipgloss.NewStyle().
+			Background(lipgloss.Color("57")).
+			Foreground(lipgloss.Color("230"))
+
+	borderStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("63"))
+
+	helpStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("241"))
+)
+
 func (m grepModel) View() string {
-	if m.width == 0 || m.height == 0 {
-		return "Loading..."
+	// 最小限の表示を保証
+	if m.width == 0 {
+		m.width = 80
+	}
+	if m.height == 0 {
+		m.height = 24
 	}
 
-	leftWidth := m.width / 2
-	rightWidth := m.width - leftWidth - 1
-
-	var s strings.Builder
-
-	// ヘッダー
-	s.WriteString(fmt.Sprintf("Search: %s\n", m.searchQuery))
-	s.WriteString(fmt.Sprintf("Found %d tickets (use q to quit, j/k to navigate)\n", len(m.filteredItems)))
-	s.WriteString(strings.Repeat("─", m.width) + "\n")
+	// ヘッダー部分
+	searchDisplay := searchStyle.Render(fmt.Sprintf("Search: %s_", m.searchQuery))
+	helpText := helpStyle.Render(fmt.Sprintf("Found %d tickets • ctrl+p/n or ↑/↓:navigate • ctrl+h:delete • ctrl+k:clear • enter:select • ctrl+c:quit", len(m.filteredItems)))
+	
+	header := lipgloss.JoinVertical(lipgloss.Left,
+		titleStyle.Render("Ticket Grep"),
+		searchDisplay,
+		helpText,
+		"",
+	)
 
 	if len(m.filteredItems) == 0 {
-		s.WriteString("No tickets found.")
-		return s.String()
+		emptyMsg := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("241")).
+			Render("No tickets found.")
+		return lipgloss.JoinVertical(lipgloss.Left, header, emptyMsg)
 	}
+
+	// レイアウト計算
+	headerHeight := lipgloss.Height(header)
+	availableHeight := m.height - headerHeight
+	leftWidth := m.width / 2
+	rightWidth := m.width - leftWidth
 
 	// 左ペイン（チケット一覧）
-	leftPane := m.renderLeftPane(leftWidth, m.height-3)
-	rightPane := m.renderRightPane(rightWidth, m.height-3)
+	leftPane := m.renderLeftPane(leftWidth-2, availableHeight-2)
+	leftPaneStyled := borderStyle.
+		Width(leftWidth-2).
+		Height(availableHeight-2).
+		Render(leftPane)
 
-	// 左右のペインを並べて表示
-	leftLines := strings.Split(leftPane, "\n")
-	rightLines := strings.Split(rightPane, "\n")
+	// 右ペイン（チケット内容）
+	rightPane := m.renderRightPane(rightWidth-2, availableHeight-2)
+	rightPaneStyled := borderStyle.
+		Width(rightWidth-2).
+		Height(availableHeight-2).
+		Render(rightPane)
 
-	maxLines := len(leftLines)
-	if len(rightLines) > maxLines {
-		maxLines = len(rightLines)
-	}
+	// 左右のペインを横に並べる
+	body := lipgloss.JoinHorizontal(lipgloss.Top, leftPaneStyled, rightPaneStyled)
 
-	for i := 0; i < maxLines; i++ {
-		var left, right string
-		if i < len(leftLines) {
-			left = leftLines[i]
-		}
-		if i < len(rightLines) {
-			right = rightLines[i]
-		}
-
-		// 左ペインの幅を調整
-		if len(left) < leftWidth {
-			left += strings.Repeat(" ", leftWidth-len(left))
-		} else if len(left) > leftWidth {
-			left = left[:leftWidth]
-		}
-
-		s.WriteString(left + "│" + right + "\n")
-	}
-
-	return s.String()
+	return lipgloss.JoinVertical(lipgloss.Left, header, body)
 }
 
 func (m grepModel) renderLeftPane(width, height int) string {
-	var s strings.Builder
+	var items []string
 
 	start := 0
 	if m.cursor >= height {
@@ -214,39 +296,81 @@ func (m grepModel) renderLeftPane(width, height int) string {
 
 	for i := start; i < start+height && i < len(m.filteredItems); i++ {
 		item := m.filteredItems[i]
-		prefix := "  "
-		if i == m.cursor {
-			prefix = "> "
+		line := item.key
+		
+		// タイトルがある場合は表示
+		if item.title != "" {
+			line = fmt.Sprintf("%s - %s", item.key, item.title)
+		}
+		
+		// 幅に合わせてトリミング
+		if len(line) > width {
+			line = line[:width-3] + "..."
 		}
 
-		line := fmt.Sprintf("%s%s", prefix, item.key)
-		if len(line) > width {
-			line = line[:width]
+		if i == m.cursor {
+			line = selectedStyle.Width(width).Render(line)
+		} else {
+			line = lipgloss.NewStyle().Width(width).Render(line)
 		}
-		s.WriteString(line + "\n")
+		
+		items = append(items, line)
 	}
 
-	return s.String()
+	// 残りの高さを空行で埋める
+	for len(items) < height {
+		items = append(items, lipgloss.NewStyle().Width(width).Render(""))
+	}
+
+	return strings.Join(items, "\n")
 }
 
 func (m grepModel) renderRightPane(width, height int) string {
 	if len(m.filteredItems) == 0 || m.cursor >= len(m.filteredItems) {
-		return ""
+		emptyMsg := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("241")).
+			Width(width).
+			Align(lipgloss.Center).
+			Render("No ticket selected")
+		
+		var items []string
+		items = append(items, emptyMsg)
+		
+		// 残りの高さを空行で埋める
+		for len(items) < height {
+			items = append(items, lipgloss.NewStyle().Width(width).Render(""))
+		}
+		
+		return strings.Join(items, "\n")
 	}
 
 	content := m.filteredItems[m.cursor].content
 	lines := strings.Split(content, "\n")
 
-	var s strings.Builder
+	var items []string
 	for i := 0; i < height && i < len(lines); i++ {
 		line := lines[i]
 		if len(line) > width {
-			line = line[:width]
+			line = line[:width-3] + "..."
 		}
-		s.WriteString(line + "\n")
+		
+		// マークダウンのヘッダーをハイライト
+		if strings.HasPrefix(line, "#") {
+			line = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("33")).
+				Render(line)
+		}
+		
+		items = append(items, lipgloss.NewStyle().Width(width).Render(line))
 	}
 
-	return s.String()
+	// 残りの高さを空行で埋める
+	for len(items) < height {
+		items = append(items, lipgloss.NewStyle().Width(width).Render(""))
+	}
+
+	return strings.Join(items, "\n")
 }
 
 func loadTickets(dir string) ([]*ticket.Ticket, error) {
