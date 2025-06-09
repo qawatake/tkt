@@ -123,7 +123,11 @@ func (m grepModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "backspace", "ctrl+h":
 			if len(m.searchQuery) > 0 {
-				m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
+				// UTF-8対応：runeベースで最後の文字を削除
+				runes := []rune(m.searchQuery)
+				if len(runes) > 0 {
+					m.searchQuery = string(runes[:len(runes)-1])
+				}
 				m.filterItems()
 				if m.cursor >= len(m.filteredItems) {
 					m.cursor = len(m.filteredItems) - 1
@@ -165,8 +169,11 @@ func (m grepModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "ctrl+d":
 			if len(m.searchQuery) > 0 {
-				// 一文字削除
-				m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
+				// UTF-8対応：runeベースで一文字削除
+				runes := []rune(m.searchQuery)
+				if len(runes) > 0 {
+					m.searchQuery = string(runes[:len(runes)-1])
+				}
 				m.filterItems()
 				if m.cursor >= len(m.filteredItems) {
 					m.cursor = len(m.filteredItems) - 1
@@ -189,12 +196,18 @@ func (m grepModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		default:
-			// escapeキーとqキーも含めて、すべての一文字入力を検索文字として扱う
-			if len(msg.String()) == 1 || msg.String() == "esc" {
-				if msg.String() == "esc" {
-					// escapeキーは文字として扱えないので、別の文字に置き換える
-					// または無視する
-				} else {
+			// 日本語を含む文字入力を検索文字として扱う
+			switch msg.Type {
+			case tea.KeyRunes:
+				// 日本語などのマルチバイト文字に対応
+				for _, r := range msg.Runes {
+					m.searchQuery += string(r)
+				}
+				m.filterItems()
+				m.cursor = 0
+			default:
+				// 従来の処理（ASCII文字）
+				if len(msg.String()) == 1 && msg.String() != "esc" {
 					m.searchQuery += msg.String()
 					m.filterItems()
 					m.cursor = 0
