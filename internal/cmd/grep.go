@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 	"github.com/qawatake/tkt/internal/config"
 	"github.com/qawatake/tkt/internal/ticket"
 	"github.com/spf13/cobra"
@@ -69,13 +70,17 @@ func newGrepModel(tickets []*ticket.Ticket, configDir string) grepModel {
 		return tickets[i].UpdatedAt.After(tickets[j].UpdatedAt)
 	})
 
-	items := make([]ticketItem, len(tickets))
-	for i, t := range tickets {
-		items[i] = ticketItem{
+	var items []ticketItem
+	for _, t := range tickets {
+		// 空のチケット（keyもtitleも空）をスキップ
+		if t.Key == "" && t.Title == "" {
+			continue
+		}
+		items = append(items, ticketItem{
 			key:     t.Key,
 			title:   t.Title,
 			content: t.Body, // フロントマターを除いた本文のみ
-		}
+		})
 	}
 
 	model := grepModel{
@@ -248,6 +253,19 @@ func (m *grepModel) filterItems() {
 	}
 }
 
+// truncateString は文字列を指定幅内に効率的にトリミングします
+func truncateString(s string, width int) string {
+	if width <= 3 {
+		return "..."[:width] // 幅が3以下の場合は...を短縮
+	}
+	
+	truncated := runewidth.Truncate(s, width-3, "")
+	if runewidth.StringWidth(s) > width {
+		return truncated + "..."
+	}
+	return s
+}
+
 var (
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
@@ -349,18 +367,8 @@ func (m grepModel) renderLeftPane(width, height int) string {
 			line = fmt.Sprintf("%s %s", keyPadded, item.title)
 		}
 
-		// 幅に合わせてトリミング（rune width対応）
-		if lipgloss.Width(line) > width {
-			// rune単位で適切にトリミング
-			runes := []rune(line)
-			for i := len(runes); i > 0; i-- {
-				truncated := string(runes[:i])
-				if lipgloss.Width(truncated+"...") <= width {
-					line = truncated + "..."
-					break
-				}
-			}
-		}
+		// 幅に合わせてトリミング
+		line = truncateString(line, width)
 
 		if i == m.cursor {
 			line = selectedStyle.Width(width).Render(line)
@@ -406,17 +414,7 @@ func (m grepModel) renderCenterPane(width, height int) string {
 	var items []string
 	for i := 0; i < height && i < len(lines); i++ {
 		line := lines[i]
-		if lipgloss.Width(line) > width {
-			// rune単位で適切にトリミング
-			runes := []rune(line)
-			for j := len(runes); j > 0; j-- {
-				truncated := string(runes[:j])
-				if lipgloss.Width(truncated+"...") <= width {
-					line = truncated + "..."
-					break
-				}
-			}
-		}
+		line = truncateString(line, width)
 
 		// マークダウンのヘッダーをハイライト
 		if strings.HasPrefix(line, "#") {
@@ -552,27 +550,9 @@ func (m grepModel) renderRightPane(width, height int) string {
 			Render("Metadata not available"))
 	}
 
-	// 各行を幅に合わせてトリミング（rune width対応）
+	// 各行を幅に合わせて調整（スタイル付き文字列はlipglossで処理）
 	for i, item := range items {
-		if lipgloss.Width(item) > width {
-			// rune単位で適切にトリミング
-			runes := []rune(item)
-			for j := len(runes); j > 0; j-- {
-				truncated := string(runes[:j])
-				if lipgloss.Width(truncated+"...") <= width {
-					items[i] = truncated + "..."
-					break
-				}
-			}
-		} else {
-			items[i] = item
-		}
-		items[i] = lipgloss.NewStyle().Width(width).Render(items[i])
-	}
-
-	// 残りの高さを空行で埋める
-	for len(items) < height {
-		items = append(items, lipgloss.NewStyle().Width(width).Render(""))
+		items[i] = lipgloss.NewStyle().Width(width).Render(item)
 	}
 
 	return strings.Join(items, "\n")
@@ -591,7 +571,10 @@ func loadTickets(dir string) ([]*ticket.Ticket, error) {
 				// エラーは無視してスキップ
 				return nil
 			}
-			tickets = append(tickets, t)
+			// 有効なチケット（keyまたはtitleが存在）のみを追加
+			if t.Key != "" || t.Title != "" {
+				tickets = append(tickets, t)
+			}
 		}
 		return nil
 	})
