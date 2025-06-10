@@ -69,8 +69,8 @@ type Config struct {
 
 // LoadConfig は設定ファイルを読み込みます
 func LoadConfig() (*Config, error) {
-	// 設定ファイルのパス (カレントディレクトリのticket.yml)
-	configFile := "ticket.yml"
+	// 設定ファイルのパス (カレントディレクトリのtkt.yml)
+	configFile := "tkt.yml"
 
 	// 設定ファイルが存在するか確認
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {

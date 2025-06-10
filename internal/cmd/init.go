@@ -21,7 +21,7 @@ var initCmd = &cobra.Command{
 	Short: "インタラクティブに設定ファイルを作成します。",
 	Long: `インタラクティブに設定ファイルを作成します。
 JIRAサーバーのURL、ログインメール、プロジェクト、ボードを選択して
-カレントディレクトリにticket.ymlを作成します。`,
+カレントディレクトリにtkt.ymlを作成します。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runInit()
 	},
@@ -239,8 +239,8 @@ func runInit() error {
 		cfg.Issue.Types = append(cfg.Issue.Types, issueTypeConfig)
 	}
 
-	// 12. 設定ファイルを保存 (ticket.ymlをカレントディレクトリに作成)
-	configFile := "ticket.yml"
+	// 12. 設定ファイルを保存 (tkt.ymlをカレントディレクトリに作成)
+	configFile := "tkt.yml"
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("設定ファイルのマーシャルに失敗しました: %v", err)
