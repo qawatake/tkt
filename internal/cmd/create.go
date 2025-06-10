@@ -51,19 +51,7 @@ func runCreate() error {
 	}
 
 	// 2. チケットタイプを選択 (プロジェクトに対応するもののみ)
-	var availableTypes []struct {
-		ID               string `mapstructure:"id" yaml:"id"`
-		Description      string `mapstructure:"description" yaml:"description"`
-		Name             string `mapstructure:"name" yaml:"name"`
-		UntranslatedName string `mapstructure:"untranslated_name" yaml:"untranslated_name"`
-		Subtask          bool   `mapstructure:"subtask" yaml:"subtask"`
-		Scope            *struct {
-			Type    string `mapstructure:"type" yaml:"type"`
-			Project struct {
-				ID string `mapstructure:"id" yaml:"id"`
-			} `mapstructure:"project" yaml:"project"`
-		} `mapstructure:"scope" yaml:"scope,omitempty"`
-	}
+	var availableTypes []config.IssueType
 
 	// 現在のプロジェクトのIssue Typesのみをフィルタリング
 	for _, issueType := range cfg.Issue.Types {

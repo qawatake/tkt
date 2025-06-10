@@ -218,19 +218,7 @@ func runInit() error {
 
 	// Issue Types情報を設定
 	for _, issueType := range issueTypes {
-		issueTypeConfig := struct {
-			ID               string `mapstructure:"id" yaml:"id"`
-			Description      string `mapstructure:"description" yaml:"description"`
-			Name             string `mapstructure:"name" yaml:"name"`
-			UntranslatedName string `mapstructure:"untranslated_name" yaml:"untranslated_name"`
-			Subtask          bool   `mapstructure:"subtask" yaml:"subtask"`
-			Scope            *struct {
-				Type    string `mapstructure:"type" yaml:"type"`
-				Project struct {
-					ID string `mapstructure:"id" yaml:"id"`
-				} `mapstructure:"project" yaml:"project"`
-			} `mapstructure:"scope" yaml:"scope,omitempty"`
-		}{
+		issueTypeConfig := config.IssueType{
 			ID:               issueType.ID,
 			Description:      issueType.Description,
 			Name:             issueType.Name,
@@ -240,16 +228,9 @@ func runInit() error {
 
 		// Scopeがnullでない場合のみ設定
 		if issueType.Scope != nil && (issueType.Scope.Type != "" || issueType.Scope.Project.ID != "") {
-			issueTypeConfig.Scope = &struct {
-				Type    string `mapstructure:"type" yaml:"type"`
-				Project struct {
-					ID string `mapstructure:"id" yaml:"id"`
-				} `mapstructure:"project" yaml:"project"`
-			}{
+			issueTypeConfig.Scope = &config.IssueTypeScope{
 				Type: issueType.Scope.Type,
-				Project: struct {
-					ID string `mapstructure:"id" yaml:"id"`
-				}{
+				Project: config.IssueTypeScopeProject{
 					ID: issueType.Scope.Project.ID,
 				},
 			}
