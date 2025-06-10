@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 
 	"github.com/qawatake/tkt/internal/config"
+	"github.com/qawatake/tkt/internal/pkg/utils"
 	"github.com/qawatake/tkt/internal/ticket"
 	"github.com/qawatake/tkt/internal/verbose"
-	"github.com/qawatake/tkt/pkg/utils"
 	"github.com/spf13/cobra"
 )
 

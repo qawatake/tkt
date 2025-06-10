@@ -7,10 +7,10 @@ import (
 
 	"github.com/qawatake/tkt/internal/config"
 	"github.com/qawatake/tkt/internal/jira"
+	"github.com/qawatake/tkt/internal/pkg/utils"
 	"github.com/qawatake/tkt/internal/ticket"
 	"github.com/qawatake/tkt/internal/ui"
 	"github.com/qawatake/tkt/internal/verbose"
-	"github.com/qawatake/tkt/pkg/utils"
 	"github.com/sourcegraph/conc/pool"
 	"github.com/spf13/cobra"
 )

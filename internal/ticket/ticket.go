@@ -9,7 +9,7 @@ import (
 	"time"
 
 	jiralib "github.com/andygrunwald/go-jira"
-	"github.com/qawatake/tkt/pkg/markdown"
+	"github.com/qawatake/tkt/internal/pkg/markdown"
 )
 
 // Ticket はJIRAチケットのローカル表現です

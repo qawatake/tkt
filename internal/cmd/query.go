@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/qawatake/tkt/internal/config"
+	"github.com/qawatake/tkt/internal/pkg/markdown"
 	"github.com/qawatake/tkt/internal/verbose"
-	"github.com/qawatake/tkt/pkg/markdown"
 	"github.com/spf13/cobra"
 )
 
