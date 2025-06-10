@@ -86,18 +86,43 @@ func FromIssue(issue *jiralib.Issue) *Ticket {
 // ToMarkdown はチケットをマークダウン形式に変換します
 func (t *Ticket) ToMarkdown() string {
 	// フロントマターを作成
-	frontMatter := markdown.CreateFrontMatter(map[string]interface{}{
-		"key":               t.Key,
-		"title":             t.Title,
-		"parentKey":         t.ParentKey,
-		"type":              t.Type,
-		"status":            t.Status,
-		"assignee":          t.Assignee,
-		"reporter":          t.Reporter,
-		"created_at":        t.CreatedAt,
-		"updated_at":        t.UpdatedAt,
-		"original_estimate": t.OriginalEstimate,
-	})
+	frontMatterData := map[string]interface{}{}
+
+	// keyがある場合のみ追加
+	if t.Key != "" {
+		frontMatterData["key"] = t.Key
+	}
+
+	// 必須項目
+	frontMatterData["title"] = t.Title
+	frontMatterData["type"] = t.Type
+
+	// parentKeyがある場合のみ追加
+	if t.ParentKey != "" {
+		frontMatterData["parentKey"] = t.ParentKey
+	}
+
+	// readonly項目は値がある場合のみ追加
+	if t.Status != "" {
+		frontMatterData["status"] = t.Status
+	}
+	if t.Assignee != "" {
+		frontMatterData["assignee"] = t.Assignee
+	}
+	if t.Reporter != "" {
+		frontMatterData["reporter"] = t.Reporter
+	}
+	if !t.CreatedAt.IsZero() {
+		frontMatterData["created_at"] = t.CreatedAt
+	}
+	if !t.UpdatedAt.IsZero() {
+		frontMatterData["updated_at"] = t.UpdatedAt
+	}
+	if t.OriginalEstimate != 0 {
+		frontMatterData["original_estimate"] = t.OriginalEstimate
+	}
+
+	frontMatter := markdown.CreateFrontMatter(frontMatterData)
 
 	// マークダウン本文を作成
 	return frontMatter + t.Body
@@ -113,8 +138,9 @@ func (t *Ticket) SaveToFile(dir string) (string, error) {
 	// ファイル名を決定
 	fileName := t.Key + ".md"
 	if t.Key == "" {
-		// キーがない場合はタイトルからファイル名を生成
-		fileName = strings.ToLower(strings.ReplaceAll(t.Title, " ", "_")) + ".md"
+		// キーがない場合はタイムスタンプからファイル名を生成
+		timestamp := time.Now().Format("20060102-150405")
+		fileName = fmt.Sprintf("TMP-%s.md", timestamp)
 	}
 	filePath := filepath.Join(dir, fileName)
 

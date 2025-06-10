@@ -6,11 +6,9 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"time"
 
 	"github.com/ktr0731/go-fuzzyfinder"
 	"github.com/qawatake/tkt/internal/config"
-	"github.com/qawatake/tkt/internal/jira"
 	"github.com/qawatake/tkt/internal/ticket"
 	"github.com/qawatake/tkt/internal/ui"
 	"github.com/spf13/cobra"
@@ -37,12 +35,6 @@ func runCreate() error {
 		return fmt.Errorf("設定ファイルの読み込みに失敗しました: %v\n'tkt init' コマンドで設定ファイルを作成してください", err)
 	}
 
-	// JIRAクライアントを作成
-	client, err := jira.NewClient(cfg)
-	if err != nil {
-		return fmt.Errorf("JIRAクライアントの作成に失敗しました: %v", err)
-	}
-
 	scanner := bufio.NewScanner(os.Stdin)
 
 	fmt.Println("🎫 新しいJIRAチケット作成")
@@ -58,30 +50,28 @@ func runCreate() error {
 		return fmt.Errorf("タイトルは必須です")
 	}
 
-	// 2. チケットタイプを選択
-	ticketTypes := []string{"Story", "Bug", "Task", "Epic", "Subtask"}
+	// 2. チケットタイプを選択 (設定ファイルから動的に取得)
+	availableTypes := cfg.Issue.Types
+	if len(availableTypes) == 0 {
+		return fmt.Errorf("設定ファイルにチケットタイプが定義されていません")
+	}
+
 	fmt.Println("\n📋 チケットタイプを選択してください:")
 
 	typeIdx, err := fuzzyfinder.Find(
-		ticketTypes,
+		availableTypes,
 		func(i int) string {
-			return ticketTypes[i]
+			return availableTypes[i].Handle
 		},
 		fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
-			descriptions := map[string]string{
-				"Story":   "新機能や改善要求",
-				"Bug":     "不具合の修正",
-				"Task":    "作業タスク",
-				"Epic":    "大きな機能の集合体",
-				"Subtask": "他のチケットのサブタスク",
-			}
-			return fmt.Sprintf("タイプ: %s\n説明: %s", ticketTypes[i], descriptions[ticketTypes[i]])
+			t := availableTypes[i]
+			return fmt.Sprintf("タイプ: %s\nID: %s\nサブタスク: %t", t.Handle, t.ID, t.Subtask)
 		}),
 	)
 	if err != nil {
 		return fmt.Errorf("チケットタイプの選択がキャンセルされました: %v", err)
 	}
-	selectedType := strings.ToLower(ticketTypes[typeIdx])
+	selectedType := availableTypes[typeIdx].Handle
 
 	// 3. ボディをvimエディタで入力
 	fmt.Println("\n📝 ボディを編集します (vimエディタが開きます)...")
@@ -90,38 +80,28 @@ func runCreate() error {
 		return fmt.Errorf("エディタの起動に失敗しました: %v", err)
 	}
 
-	// 4. チケットを作成
+	// 4. ローカルチケットを作成 (keyは空文字列、リモートが採番)
 	newTicket := &ticket.Ticket{
-		Title:     title,
-		Type:      selectedType,
-		Body:      body,
-		Status:    "To Do",
-		Reporter:  cfg.Login,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-
-	fmt.Println("\n🚀 JIRAチケットを作成中...")
-	createdTicket, err := ui.WithSpinnerValue("チケットを作成中...", func() (*ticket.Ticket, error) {
-		return client.CreateIssue(newTicket)
-	})
-	if err != nil {
-		return fmt.Errorf("チケットの作成に失敗しました: %v", err)
+		Key:   "", // リモートが採番するため空文字列
+		Title: title,
+		Type:  selectedType,
+		Body:  body,
 	}
 
 	// 5. ローカルファイルとして保存
+	fmt.Println("\n💾 ローカルファイルを保存中...")
 	filePath, err := ui.WithSpinnerValue("ローカルファイルを保存中...", func() (string, error) {
-		return createdTicket.SaveToFile(cfg.Directory)
+		return newTicket.SaveToFile(cfg.Directory)
 	})
 	if err != nil {
 		return fmt.Errorf("ローカルファイルの保存に失敗しました: %v", err)
 	}
 
-	fmt.Println("\n✅ チケットが作成されました！")
-	fmt.Printf("   チケットキー: %s\n", createdTicket.Key)
-	fmt.Printf("   タイトル: %s\n", createdTicket.Title)
-	fmt.Printf("   タイプ: %s\n", createdTicket.Type)
+	fmt.Println("\n✅ ローカルチケットが作成されました！")
+	fmt.Printf("   タイトル: %s\n", newTicket.Title)
+	fmt.Printf("   タイプ: %s\n", newTicket.Type)
 	fmt.Printf("   ファイル: %s\n", filePath)
+	fmt.Printf("   次のステップ: 'tkt push' でJIRAに同期してキーを取得\n")
 
 	return nil
 }
