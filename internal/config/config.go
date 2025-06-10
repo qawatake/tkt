@@ -16,6 +16,7 @@ type Config struct {
 	Server   string `mapstructure:"server" yaml:"server"`
 	Project  struct {
 		Key  string `mapstructure:"key" yaml:"key"`
+		ID   string `mapstructure:"id" yaml:"id"`
 		Type string `mapstructure:"type" yaml:"type"`
 	} `mapstructure:"project" yaml:"project"`
 	Board struct {

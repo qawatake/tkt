@@ -208,6 +208,7 @@ func runInit() error {
 
 	// Project情報を設定
 	cfg.Project.Key = selectedProject.Key
+	cfg.Project.ID = selectedProject.ID
 	cfg.Project.Type = "software"
 
 	// Board情報を設定

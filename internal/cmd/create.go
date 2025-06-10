@@ -50,10 +50,31 @@ func runCreate() error {
 		return fmt.Errorf("タイトルは必須です")
 	}
 
-	// 2. チケットタイプを選択 (設定ファイルから動的に取得)
-	availableTypes := cfg.Issue.Types
+	// 2. チケットタイプを選択 (プロジェクトに対応するもののみ)
+	var availableTypes []struct {
+		ID               string `mapstructure:"id" yaml:"id"`
+		Description      string `mapstructure:"description" yaml:"description"`
+		Name             string `mapstructure:"name" yaml:"name"`
+		UntranslatedName string `mapstructure:"untranslated_name" yaml:"untranslated_name"`
+		Subtask          bool   `mapstructure:"subtask" yaml:"subtask"`
+		Scope            *struct {
+			Type    string `mapstructure:"type" yaml:"type"`
+			Project struct {
+				ID string `mapstructure:"id" yaml:"id"`
+			} `mapstructure:"project" yaml:"project"`
+		} `mapstructure:"scope" yaml:"scope,omitempty"`
+	}
+
+	// 現在のプロジェクトのIssue Typesのみをフィルタリング
+	for _, issueType := range cfg.Issue.Types {
+		// Scopeがない（グローバル）またはプロジェクトIDが一致する場合
+		if issueType.Scope == nil || issueType.Scope.Project.ID == "" || issueType.Scope.Project.ID == cfg.Project.ID {
+			availableTypes = append(availableTypes, issueType)
+		}
+	}
+
 	if len(availableTypes) == 0 {
-		return fmt.Errorf("設定ファイルにチケットタイプが定義されていません")
+		return fmt.Errorf("プロジェクト '%s' に対応するチケットタイプが見つかりません", cfg.Project.Key)
 	}
 
 	fmt.Println("\n📋 チケットタイプを選択してください:")

@@ -250,10 +250,15 @@ func (c *Client) UpdateIssue(ticket ticket.Ticket) error {
 
 // CreateIssue は新しいJIRAチケットを作成します
 func (c *Client) CreateIssue(ticket *ticket.Ticket) (*ticket.Ticket, error) {
-	// チケットタイプIDを取得
+	// チケットタイプIDを取得し、プロジェクトの妥当性も確認
 	typeID := ""
+
 	for _, t := range c.config.Issue.Types {
 		if t.Name == ticket.Type {
+			// プロジェクトIDの確認
+			if t.Scope != nil && t.Scope.Project.ID != "" && t.Scope.Project.ID != c.config.Project.ID {
+				continue // このタイプは使用不可なので次へ
+			}
 			typeID = t.ID
 			break
 		}
