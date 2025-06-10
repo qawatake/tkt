@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
@@ -35,19 +34,13 @@ func runCreate() error {
 		return fmt.Errorf("設定ファイルの読み込みに失敗しました: %v\n'tkt init' コマンドで設定ファイルを作成してください", err)
 	}
 
-	scanner := bufio.NewScanner(os.Stdin)
-
 	fmt.Println("🎫 新しいJIRAチケット作成")
 	fmt.Println("========================")
 
 	// 1. タイトルを入力
-	fmt.Print("チケットタイトル (必須): ")
-	if !scanner.Scan() {
-		return fmt.Errorf("入力エラー")
-	}
-	title := strings.TrimSpace(scanner.Text())
-	if title == "" {
-		return fmt.Errorf("タイトルは必須です")
+	title, err := ui.PromptForText("チケットタイトル (必須):", "チケットのタイトルを入力してください", true)
+	if err != nil {
+		return fmt.Errorf("タイトル入力がキャンセルされました: %v", err)
 	}
 
 	// 2. チケットタイプを選択 (プロジェクトに対応するもののみ)

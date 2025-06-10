@@ -1,13 +1,11 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/ktr0731/go-fuzzyfinder"
 	"github.com/qawatake/tkt/internal/config"
@@ -58,29 +56,19 @@ type JiraIssueType struct {
 }
 
 func runInit() error {
-	scanner := bufio.NewScanner(os.Stdin)
-
 	fmt.Println("🔧 tkt設定セットアップ")
 	fmt.Println("=======================")
 
 	// 1. JIRAサーバーURLを入力
-	fmt.Print("JIRAサーバーのURL (例: https://your-domain.atlassian.net): ")
-	if !scanner.Scan() {
-		return fmt.Errorf("入力エラー")
-	}
-	serverURL := strings.TrimSpace(scanner.Text())
-	if serverURL == "" {
-		return fmt.Errorf("JIRAサーバーURLは必須です")
+	serverURL, err := ui.PromptForText("JIRAサーバーのURL (必須):", "https://your-domain.atlassian.net", true)
+	if err != nil {
+		return fmt.Errorf("JIRAサーバーURL入力がキャンセルされました: %v", err)
 	}
 
 	// 2. ログインメールを入力
-	fmt.Print("ログインメールアドレス: ")
-	if !scanner.Scan() {
-		return fmt.Errorf("入力エラー")
-	}
-	loginEmail := strings.TrimSpace(scanner.Text())
-	if loginEmail == "" {
-		return fmt.Errorf("ログインメールアドレスは必須です")
+	loginEmail, err := ui.PromptForText("ログインメールアドレス (必須):", "your-email@company.com", true)
+	if err != nil {
+		return fmt.Errorf("ログインメール入力がキャンセルされました: %v", err)
 	}
 
 	// 3. APIトークンの確認
@@ -89,11 +77,11 @@ func runInit() error {
 		fmt.Println("\n⚠️  JIRA_API_TOKEN環境変数が設定されていません。")
 		fmt.Println("   Atlassian API Token (https://id.atlassian.com/manage-profile/security/api-tokens) を取得して、")
 		fmt.Println("   環境変数 JIRA_API_TOKEN に設定してください。")
-		fmt.Print("続行しますか？ (y/N): ")
-		if !scanner.Scan() {
-			return fmt.Errorf("入力エラー")
+		continueSetup, err := ui.PromptForConfirmation("続行しますか？")
+		if err != nil {
+			return fmt.Errorf("確認入力がキャンセルされました: %v", err)
 		}
-		if strings.ToLower(strings.TrimSpace(scanner.Text())) != "y" {
+		if !continueSetup {
 			return fmt.Errorf("セットアップを中止しました")
 		}
 		apiToken = "dummy_token" // 一時的なダミートークン
@@ -166,12 +154,10 @@ func runInit() error {
 	// 8. JQLを入力
 	fmt.Println()
 	defaultJQL := fmt.Sprintf("project = %s", selectedProject.Key)
-	fmt.Printf("JQL (デフォルト: %s): ", defaultJQL)
-	if !scanner.Scan() {
-		return fmt.Errorf("入力エラー")
+	jqlInput, err := ui.PromptForText(fmt.Sprintf("JQL (デフォルト: %s):", defaultJQL), defaultJQL, false)
+	if err != nil {
+		return fmt.Errorf("JQL入力がキャンセルされました: %v", err)
 	}
-
-	jqlInput := strings.TrimSpace(scanner.Text())
 	if jqlInput == "" {
 		jqlInput = defaultJQL
 	}
@@ -186,12 +172,10 @@ func runInit() error {
 
 	// 10. ディレクトリを入力
 	defaultDirectory := "tmp"
-	fmt.Printf("マークダウンファイル格納ディレクトリ (デフォルト: %s): ", defaultDirectory)
-	if !scanner.Scan() {
-		return fmt.Errorf("入力エラー")
+	directoryInput, err := ui.PromptForText(fmt.Sprintf("マークダウンファイル格納ディレクトリ (デフォルト: %s):", defaultDirectory), defaultDirectory, false)
+	if err != nil {
+		return fmt.Errorf("ディレクトリ入力がキャンセルされました: %v", err)
 	}
-
-	directoryInput := strings.TrimSpace(scanner.Text())
 	if directoryInput == "" {
 		directoryInput = defaultDirectory
 	}
