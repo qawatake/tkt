@@ -258,7 +258,7 @@ func truncateString(s string, width int) string {
 	if width <= 3 {
 		return "..."[:width] // 幅が3以下の場合は...を短縮
 	}
-	
+
 	truncated := runewidth.Truncate(s, width-3, "")
 	if runewidth.StringWidth(s) > width {
 		return truncated + "..."
@@ -316,7 +316,7 @@ func (m grepModel) View() string {
 	// レイアウト計算（3ペイン構成）
 	headerHeight := lipgloss.Height(header)
 	availableHeight := m.height - headerHeight
-	leftWidth := m.width * 3 / 8                   // 左ペインを3/8に拡大
+	leftWidth := m.width * 3 / 8                    // 左ペインを3/8に拡大
 	rightWidth := m.width / 6                       // 右ペイン（フロントマター）を1/6に縮小
 	centerWidth := m.width - leftWidth - rightWidth // 中央ペインは残り（約5/12）
 
