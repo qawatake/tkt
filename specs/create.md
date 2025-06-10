@@ -70,7 +70,7 @@ Detailed description of the user authentication feature...
 
 ## TODO
 
-1. [ ] backspaceで文字削除。
+1. [x] backspaceで文字削除。
 2. [ ] 親も選べるようにする。
 3. [ ] サブタスクは親を指定しないと作成できないバリデーション
 4. [ ] 初期見積もりの入力。
