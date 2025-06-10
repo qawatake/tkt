@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"slices"
@@ -106,7 +107,7 @@ func (c *Client) FetchIssue(key string) (*ticket.Ticket, error) {
 	if err != nil {
 		return nil, err
 	}
-	return convert(issue)
+	return convert(issue, c.config)
 }
 
 // FetchIssues はJQLに基づいてJIRAチケットを取得します
@@ -175,7 +176,7 @@ func (c *Client) FetchIssues() (_ []*ticket.Ticket, err error) {
 
 	tickets := make([]*ticket.Ticket, 0, len(issues))
 	for _, issue := range issues {
-		ticket, err := convert(issue)
+		ticket, err := convert(issue, c.config)
 		if err != nil {
 			return nil, err
 		}
@@ -185,12 +186,13 @@ func (c *Client) FetchIssues() (_ []*ticket.Ticket, err error) {
 	return tickets, nil
 }
 
-func convert(issue *Issue) (*ticket.Ticket, error) {
+func convert(issue *Issue, cfg *config.Config) (*ticket.Ticket, error) {
 	tkt := &ticket.Ticket{
 		Key:    issue.Key,
 		Title:  issue.Fields.Summary,
 		Type:   strings.ToLower(issue.Fields.IssueType.Name),
 		Status: issue.Fields.Status.Name,
+		URL:    fmt.Sprintf("%s/browse/%s", cfg.Server, issue.Key),
 	}
 
 	tkt.Body = adf.NewTranslator(issue.Fields.Description, adf.NewJiraMarkdownTranslator()).Translate()
@@ -251,30 +253,48 @@ func (c *Client) UpdateIssue(ticket ticket.Ticket) error {
 // CreateIssue は新しいJIRAチケットを作成します
 func (c *Client) CreateIssue(ticket *ticket.Ticket) (*ticket.Ticket, error) {
 	// チケットタイプIDを取得し、プロジェクトの妥当性も確認
-	// プロジェクト固有のものを優先し、見つからなければグローバルなものを使用
+	// createコマンドと同じフィルタリングロジックを使用
 	typeID := ""
-	var globalTypeID string
+	var selectedType *config.IssueType
 
-	for _, t := range c.config.Issue.Types {
-		if t.Name == ticket.Type {
-			// プロジェクト固有のタイプ
-			if t.Scope != nil && t.Scope.Project.ID == c.config.Project.ID {
-				typeID = t.ID
-				break // プロジェクト固有が見つかったら即座に決定
+	verbose.Printf("チケットタイプ '%s' を検索中 (プロジェクト: %s, ID: %s)\n", ticket.Type, c.config.Project.Key, c.config.Project.ID)
+
+	// createコマンドと同じロジック：プロジェクト固有のものを優先する
+	typeMap := make(map[string]config.IssueType)
+	for _, issueType := range c.config.Issue.Types {
+		verbose.Printf("  候補: %s (ID: %s, Scope: %v)\n", issueType.Name, issueType.ID, issueType.Scope)
+
+		// プロジェクト固有のIssue Typeのみを許可
+		if issueType.Scope != nil && issueType.Scope.Project.ID == c.config.Project.ID {
+			_, exists := typeMap[issueType.Name]
+			if !exists {
+				// 初回の場合は追加
+				typeMap[issueType.Name] = issueType
+				verbose.Printf("    -> 追加 (プロジェクト固有)\n")
+			} else {
+				// 既存がある場合も置き換え（プロジェクト固有同士なので）
+				typeMap[issueType.Name] = issueType
+				verbose.Printf("    -> 置き換え (プロジェクト固有)\n")
 			}
-			// グローバルタイプ（スコープなしまたは空のプロジェクトID）
-			if (t.Scope == nil || t.Scope.Project.ID == "") && globalTypeID == "" {
-				globalTypeID = t.ID
-			}
+		} else if issueType.Scope == nil {
+			verbose.Printf("    -> スキップ (グローバルタイプ)\n")
+		} else {
+			verbose.Printf("    -> スキップ (他プロジェクト)\n")
 		}
 	}
 
-	// プロジェクト固有が見つからなかった場合はグローバルを使用
-	if typeID == "" {
-		typeID = globalTypeID
+	// 指定されたタイプが見つかるかチェック
+	if selectedIssueType, exists := typeMap[ticket.Type]; exists {
+		selectedType = &selectedIssueType
+		typeID = selectedType.ID
+		verbose.Printf("選択されたタイプ: %s (ID: %s)\n", selectedType.Name, selectedType.ID)
 	}
 
 	if typeID == "" {
+		verbose.Printf("利用可能なタイプ一覧:\n")
+		for name, t := range typeMap {
+			verbose.Printf("  - %s (ID: %s)\n", name, t.ID)
+		}
 		return nil, fmt.Errorf("チケットタイプが見つかりません: %s", ticket.Type)
 	}
 
@@ -305,8 +325,24 @@ func (c *Client) CreateIssue(ticket *ticket.Ticket) (*ticket.Ticket, error) {
 		Fields: &fields,
 	}
 
-	newIssue, _, err := c.jiraClient.Issue.Create(&issue)
+	// デバッグ用：リクエストボディをログ出力
+	if requestBody, marshalErr := json.MarshalIndent(issue, "", "  "); marshalErr == nil {
+		verbose.Printf("JIRA Issue作成リクエスト:\n%s\n", string(requestBody))
+	}
+
+	newIssue, response, err := c.jiraClient.Issue.Create(&issue)
 	if err != nil {
+		// HTTP レスポンスボディを読み取って詳細なエラー情報を取得
+		var errorDetails string
+		if response != nil && response.Body != nil {
+			bodyBytes, readErr := io.ReadAll(response.Body)
+			if readErr == nil {
+				errorDetails = string(bodyBytes)
+			}
+		}
+		if errorDetails != "" {
+			return nil, fmt.Errorf("JIRAチケットの作成に失敗しました: %v\nレスポンス詳細: %s", err, errorDetails)
+		}
 		return nil, fmt.Errorf("JIRAチケットの作成に失敗しました: %v", err)
 	}
 
@@ -506,7 +542,7 @@ func (c *Client) BulkFetchIssues(keys []string) (_ []*ticket.Ticket, err error) 
 	// IssueからTicketに変換
 	tickets := make([]*ticket.Ticket, 0, len(allIssues))
 	for _, issue := range allIssues {
-		ticket, err := convert(issue)
+		ticket, err := convert(issue, c.config)
 		if err != nil {
 			return nil, err
 		}

@@ -23,6 +23,7 @@ type Ticket struct {
 	CreatedAt        time.Time `yaml:"created_at"`
 	UpdatedAt        time.Time `yaml:"updated_at"`
 	OriginalEstimate Hour      `yaml:"original_estimate"`
+	URL              string    `yaml:"url"`
 	Title            string    `yaml:"-"`
 	Body             string    `yaml:"-"`
 	FilePath         string    `yaml:"-"`
@@ -121,6 +122,9 @@ func (t *Ticket) ToMarkdown() string {
 	if t.OriginalEstimate != 0 {
 		frontMatterData["original_estimate"] = t.OriginalEstimate
 	}
+	if t.URL != "" {
+		frontMatterData["url"] = t.URL
+	}
 
 	frontMatter := markdown.CreateFrontMatter(frontMatterData)
 
@@ -202,6 +206,9 @@ func FromFile(filePath string) (*Ticket, error) {
 	}
 	if updatedAt, ok := frontMatter["updated_at"].(time.Time); ok {
 		ticket.UpdatedAt = updatedAt
+	}
+	if url, ok := frontMatter["url"].(string); ok {
+		ticket.URL = url
 	}
 
 	// 本文をそのまま設定
