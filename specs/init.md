@@ -19,5 +19,5 @@ https://github.com/ankitpokhrel/jira-cli と同じように設定をインタラ
 4. [x] jqlも聞く。そしてデフォルトは`project = <default project>`にする。
 5. [x] 現状はmdファイルを格納するディレクトリ(mergeコマンドの出力先)は`tmp`で決め打ち。これをのticket.ymlで設定できるようにする。
 6. [x] ボードやプロジェクトを選ぶときはpecoのようにfuzzy searchできるようにする。
-7. [ ] taskやエピックの情報を取得する。(要するにissue typeの情報を取得する。)
+7. [x] taskやエピックの情報を取得する。(要するにissue typeの情報を取得する。)
 8. [ ] 設定ファイル名を`ticket.yml`から`tkt.yml`に変更する。
