@@ -251,17 +251,27 @@ func (c *Client) UpdateIssue(ticket ticket.Ticket) error {
 // CreateIssue は新しいJIRAチケットを作成します
 func (c *Client) CreateIssue(ticket *ticket.Ticket) (*ticket.Ticket, error) {
 	// チケットタイプIDを取得し、プロジェクトの妥当性も確認
+	// プロジェクト固有のものを優先し、見つからなければグローバルなものを使用
 	typeID := ""
+	var globalTypeID string
 
 	for _, t := range c.config.Issue.Types {
 		if t.Name == ticket.Type {
-			// プロジェクトIDの確認
-			if t.Scope != nil && t.Scope.Project.ID != "" && t.Scope.Project.ID != c.config.Project.ID {
-				continue // このタイプは使用不可なので次へ
+			// プロジェクト固有のタイプ
+			if t.Scope != nil && t.Scope.Project.ID == c.config.Project.ID {
+				typeID = t.ID
+				break // プロジェクト固有が見つかったら即座に決定
 			}
-			typeID = t.ID
-			break
+			// グローバルタイプ（スコープなしまたは空のプロジェクトID）
+			if (t.Scope == nil || t.Scope.Project.ID == "") && globalTypeID == "" {
+				globalTypeID = t.ID
+			}
 		}
+	}
+
+	// プロジェクト固有が見つからなかった場合はグローバルを使用
+	if typeID == "" {
+		typeID = globalTypeID
 	}
 
 	if typeID == "" {

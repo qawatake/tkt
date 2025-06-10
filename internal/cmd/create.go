@@ -54,11 +54,31 @@ func runCreate() error {
 	var availableTypes []config.IssueType
 
 	// 現在のプロジェクトのIssue Typesのみをフィルタリング
+	// 同じ名前の場合、プロジェクト固有のものを優先する
+	typeMap := make(map[string]config.IssueType)
+
 	for _, issueType := range cfg.Issue.Types {
-		// Scopeがない（グローバル）またはプロジェクトIDが一致する場合
+		// プロジェクトで使用可能なタイプのみ
 		if issueType.Scope == nil || issueType.Scope.Project.ID == "" || issueType.Scope.Project.ID == cfg.Project.ID {
-			availableTypes = append(availableTypes, issueType)
+			existing, exists := typeMap[issueType.Name]
+			if !exists {
+				// 初回の場合は追加
+				typeMap[issueType.Name] = issueType
+			} else {
+				// 既存がある場合、プロジェクト固有を優先
+				if issueType.Scope != nil && issueType.Scope.Project.ID == cfg.Project.ID {
+					// 現在のものがプロジェクト固有なら置き換える
+					typeMap[issueType.Name] = issueType
+				} else if existing.Scope == nil || existing.Scope.Project.ID == "" {
+					// 既存がグローバルで現在もグローバルなら何もしない（最初のものを保持）
+				}
+			}
 		}
+	}
+
+	// マップから配列に変換
+	for _, issueType := range typeMap {
+		availableTypes = append(availableTypes, issueType)
 	}
 
 	if len(availableTypes) == 0 {
