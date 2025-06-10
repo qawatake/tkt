@@ -21,17 +21,14 @@ var grepCmd = &cobra.Command{
 	Short:   "ローカルのファイルを全文検索します",
 	Long:    `ローカルのファイルを全文検索します。チケットのkeyと内容を表示します。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadConfig()
+		// デフォルトでキャッシュディレクトリを使用
+		cacheDir, err := config.EnsureCacheDir()
 		if err != nil {
-			return fmt.Errorf("設定ファイルの読み込みに失敗しました: %v", err)
-		}
-
-		if cfg.Directory == "" {
-			return fmt.Errorf("設定ファイルにdirectoryが設定されていません。tkt initで設定してください")
+			return fmt.Errorf("キャッシュディレクトリの取得に失敗しました: %v", err)
 		}
 
 		// マークダウンファイルを読み込み
-		tickets, err := loadTickets(cfg.Directory)
+		tickets, err := loadTickets(cacheDir)
 		if err != nil {
 			return fmt.Errorf("チケットの読み込みに失敗しました: %v", err)
 		}
@@ -41,7 +38,7 @@ var grepCmd = &cobra.Command{
 		}
 
 		// Bubble Teaアプリを起動
-		model := newGrepModel(tickets, cfg.Directory)
+		model := newGrepModel(tickets, cacheDir)
 		p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 		_, err = p.Run()
 		return err

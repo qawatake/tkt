@@ -26,23 +26,18 @@ var queryCmd = &cobra.Command{
 	Short:   "ローカルのファイルをSQLで検索します。",
 	Long:    `ローカルのファイルをSQLで検索します。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// 1. 設定ファイルを読み込む
-		cfg, err := config.LoadConfig()
-		if err != nil {
-			return fmt.Errorf("設定ファイルの読み込みに失敗しました: %v", err)
-		}
-
-		// queryDirが指定されていない場合は設定ファイルのディレクトリを使用
+		// queryDirが指定されていない場合はキャッシュディレクトリを使用
 		if queryDir == "" {
-			if cfg.Directory == "" {
-				return fmt.Errorf("設定ファイルにdirectoryが設定されていません。tkt initで設定してください")
+			cacheDir, err := config.EnsureCacheDir()
+			if err != nil {
+				return fmt.Errorf("キャッシュディレクトリの取得に失敗しました: %v", err)
 			}
-			queryDir = cfg.Directory
+			queryDir = cacheDir
 		}
 
 		// 2. マークダウンファイルを検索
 		var markdownFiles []string
-		err = filepath.WalkDir(queryDir, func(path string, d fs.DirEntry, err error) error {
+		err := filepath.WalkDir(queryDir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -62,7 +57,7 @@ var queryCmd = &cobra.Command{
 		verbose.Printf("%d 件のマークダウンファイルを発見しました\n", len(markdownFiles))
 
 		// 3. フロントマターを抽出してJSONに変換
-		var allFrontmatters []map[string]interface{}
+		var allFrontmatters []map[string]any
 		for _, file := range markdownFiles {
 			content, err := os.ReadFile(file)
 			if err != nil {

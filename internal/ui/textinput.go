@@ -54,11 +54,11 @@ func (m textInputModel) View() string {
 	} else {
 		view = fmt.Sprintf("%s\n%s", m.prompt, m.textInput.View())
 	}
-	
+
 	if m.required && m.textInput.Value() == "" && m.textInput.Focused() {
 		view += "\n\n⚠️  この項目は必須です"
 	}
-	
+
 	return view
 }
 
