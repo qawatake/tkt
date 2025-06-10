@@ -67,3 +67,9 @@ Detailed description of the user authentication feature...
 - JIRA API errors: Show connection/authentication issues
 - Vim editor not found: Suggest alternative or manual input
 - Network issues: Graceful failure with offline mode suggestion
+
+## TODO
+
+1. [ ] 親も選べるようにする。
+2. [ ] サブタスクは親を指定しないと作成できないバリデーション
+3. [ ] 初期見積もりの入力。

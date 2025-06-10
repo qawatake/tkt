@@ -5,4 +5,4 @@
 ## todo
 
 1. [x] タイトルもfrontmatterに追加する。
-2. [ ] urlをfrontmatterに追加する。
+2. [x] urlをfrontmatterに追加する。
