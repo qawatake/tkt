@@ -39,10 +39,17 @@ type Config struct {
 			} `mapstructure:"custom" yaml:"custom"`
 		} `mapstructure:"fields" yaml:"fields"`
 		Types []struct {
-			ID      string `mapstructure:"id" yaml:"id"`
-			Name    string `mapstructure:"name" yaml:"name"`
-			Handle  string `mapstructure:"handle" yaml:"handle"`
-			Subtask bool   `mapstructure:"subtask" yaml:"subtask"`
+			ID               string `mapstructure:"id" yaml:"id"`
+			Description      string `mapstructure:"description" yaml:"description"`
+			Name             string `mapstructure:"name" yaml:"name"`
+			UntranslatedName string `mapstructure:"untranslated_name" yaml:"untranslated_name"`
+			Subtask          bool   `mapstructure:"subtask" yaml:"subtask"`
+			Scope            *struct {
+				Type    string `mapstructure:"type" yaml:"type"`
+				Project struct {
+					ID string `mapstructure:"id" yaml:"id"`
+				} `mapstructure:"project" yaml:"project"`
+			} `mapstructure:"scope" yaml:"scope,omitempty"`
 		} `mapstructure:"types" yaml:"types"`
 	} `mapstructure:"issue" yaml:"issue"`
 	JQL       string `mapstructure:"jql" yaml:"jql"`

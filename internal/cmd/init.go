@@ -43,6 +43,20 @@ type JiraBoard struct {
 	Type string `json:"type"`
 }
 
+type JiraIssueType struct {
+	ID               string `json:"id"`
+	Description      string `json:"description"`
+	Name             string `json:"name"`
+	UntranslatedName string `json:"untranslatedName"`
+	Subtask          bool   `json:"subtask"`
+	Scope            *struct {
+		Type    string `json:"type"`
+		Project struct {
+			ID string `json:"id"`
+		} `json:"project"`
+	} `json:"scope"`
+}
+
 func runInit() error {
 	scanner := bufio.NewScanner(os.Stdin)
 
@@ -162,7 +176,15 @@ func runInit() error {
 		jqlInput = defaultJQL
 	}
 
-	// 9. ディレクトリを入力
+	// 9. Issue typesを取得
+	issueTypes, err := ui.WithSpinnerValue("Issue Types一覧を取得中...", func() ([]JiraIssueType, error) {
+		return fetchIssueTypes(serverURL, loginEmail, apiToken)
+	})
+	if err != nil {
+		return fmt.Errorf("issue Types一覧の取得に失敗しました: %v", err)
+	}
+
+	// 10. ディレクトリを入力
 	defaultDirectory := "tmp"
 	fmt.Printf("マークダウンファイル格納ディレクトリ (デフォルト: %s): ", defaultDirectory)
 	if !scanner.Scan() {
@@ -174,7 +196,7 @@ func runInit() error {
 		directoryInput = defaultDirectory
 	}
 
-	// 10. 設定ファイルを作成
+	// 11. 設定ファイルを作成
 	cfg := &config.Config{
 		AuthType:  "basic",
 		Login:     loginEmail,
@@ -193,7 +215,49 @@ func runInit() error {
 	cfg.Board.Name = selectedBoard.Name
 	cfg.Board.Type = selectedBoard.Type
 
-	// 11. 設定ファイルを保存 (ticket.ymlをカレントディレクトリに作成)
+	// Issue Types情報を設定
+	for _, issueType := range issueTypes {
+		issueTypeConfig := struct {
+			ID               string `mapstructure:"id" yaml:"id"`
+			Description      string `mapstructure:"description" yaml:"description"`
+			Name             string `mapstructure:"name" yaml:"name"`
+			UntranslatedName string `mapstructure:"untranslated_name" yaml:"untranslated_name"`
+			Subtask          bool   `mapstructure:"subtask" yaml:"subtask"`
+			Scope            *struct {
+				Type    string `mapstructure:"type" yaml:"type"`
+				Project struct {
+					ID string `mapstructure:"id" yaml:"id"`
+				} `mapstructure:"project" yaml:"project"`
+			} `mapstructure:"scope" yaml:"scope,omitempty"`
+		}{
+			ID:               issueType.ID,
+			Description:      issueType.Description,
+			Name:             issueType.Name,
+			UntranslatedName: issueType.UntranslatedName,
+			Subtask:          issueType.Subtask,
+		}
+
+		// Scopeがnullでない場合のみ設定
+		if issueType.Scope != nil && (issueType.Scope.Type != "" || issueType.Scope.Project.ID != "") {
+			issueTypeConfig.Scope = &struct {
+				Type    string `mapstructure:"type" yaml:"type"`
+				Project struct {
+					ID string `mapstructure:"id" yaml:"id"`
+				} `mapstructure:"project" yaml:"project"`
+			}{
+				Type: issueType.Scope.Type,
+				Project: struct {
+					ID string `mapstructure:"id" yaml:"id"`
+				}{
+					ID: issueType.Scope.Project.ID,
+				},
+			}
+		}
+
+		cfg.Issue.Types = append(cfg.Issue.Types, issueTypeConfig)
+	}
+
+	// 12. 設定ファイルを保存 (ticket.ymlをカレントディレクトリに作成)
 	configFile := "ticket.yml"
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
@@ -272,4 +336,34 @@ func fetchBoards(serverURL, email, apiToken, projectKey string) ([]JiraBoard, er
 	}
 
 	return response.Values, nil
+}
+
+func fetchIssueTypes(serverURL, email, apiToken string) ([]JiraIssueType, error) {
+	url := serverURL + "/rest/api/3/issuetype"
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.SetBasicAuth(email, apiToken)
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("JIRA API request failed: %s", resp.Status)
+	}
+
+	var issueTypes []JiraIssueType
+	if err := json.NewDecoder(resp.Body).Decode(&issueTypes); err != nil {
+		return nil, err
+	}
+
+	return issueTypes, nil
 }

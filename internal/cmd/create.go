@@ -61,17 +61,17 @@ func runCreate() error {
 	typeIdx, err := fuzzyfinder.Find(
 		availableTypes,
 		func(i int) string {
-			return availableTypes[i].Handle
+			return availableTypes[i].Name
 		},
 		fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
 			t := availableTypes[i]
-			return fmt.Sprintf("タイプ: %s\nID: %s\nサブタスク: %t", t.Handle, t.ID, t.Subtask)
+			return fmt.Sprintf("タイプ: %s\nID: %s\nサブタスク: %t", t.Name, t.ID, t.Subtask)
 		}),
 	)
 	if err != nil {
 		return fmt.Errorf("チケットタイプの選択がキャンセルされました: %v", err)
 	}
-	selectedType := availableTypes[typeIdx].Handle
+	selectedType := availableTypes[typeIdx].Name
 
 	// 3. ボディをvimエディタで入力
 	fmt.Println("\n📝 ボディを編集します (vimエディタが開きます)...")

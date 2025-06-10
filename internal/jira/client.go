@@ -253,7 +253,7 @@ func (c *Client) CreateIssue(ticket *ticket.Ticket) (*ticket.Ticket, error) {
 	// チケットタイプIDを取得
 	typeID := ""
 	for _, t := range c.config.Issue.Types {
-		if t.Handle == ticket.Type {
+		if t.Name == ticket.Type {
 			typeID = t.ID
 			break
 		}
