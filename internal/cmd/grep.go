@@ -3,9 +3,12 @@ package cmd
 import (
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/charmbracelet/glamour"
 
 	"github.com/charmbracelet/x/ansi"
 
@@ -382,35 +385,18 @@ func (m grepModel) renderCenterPane(width, height int) string {
 		var items []string
 		items = append(items, emptyMsg)
 
-		// 残りの高さを空行で埋める
-		for len(items) < height {
-			items = append(items, lipgloss.NewStyle().Width(width).Render(""))
-		}
-
 		return strings.Join(items, "\n")
 	}
 
 	content := m.filteredItems[m.cursor].content
-	// 先頭の空行をtrim
-	content = strings.TrimLeft(content, "\n")
-	lines := strings.Split(content, "\n")
-
-	var items []string
-	for i := 0; i < height && i < len(lines); i++ {
-		line := lines[i]
-
-		// マークダウンのヘッダーをハイライト
-		if strings.HasPrefix(line, "#") {
-			line = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("33")).
-				Render(line)
-		}
-
-		items = append(items, lipgloss.NewStyle().Width(width).Render(line))
+	// FIXME: dark
+	content, err := glamour.Render(content, "dark")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		panic(err)
 	}
-
-	return strings.Join(items, "\n")
+	content = strings.TrimSpace(content)
+	return lipgloss.NewStyle().Width(width - 2).MaxWidth(width).Render(content)
 }
 
 func (m grepModel) renderRightPane(width, height int) string {
