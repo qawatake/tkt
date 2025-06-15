@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
@@ -56,8 +57,45 @@ var grepCmd = &cobra.Command{
 		}
 		p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithOutput(tty.Output()), tea.WithMouseCellMotion())
 		_, err = p.Run()
-		return err
+		if err != nil {
+			return err
+		}
+		t := model.Selected()
+		dto := ticketDTO{
+			Key:              t.Key,
+			ParentKey:        t.ParentKey,
+			Type:             t.Type,
+			Status:           t.Status,
+			Assignee:         t.Assignee,
+			Reporter:         t.Reporter,
+			CreatedAt:        t.CreatedAt.Format("2006-01-02"),
+			UpdatedAt:        t.UpdatedAt.Format("2006-01-02"),
+			OriginalEstimate: float64(t.OriginalEstimate),
+			URL:              t.URL,
+			Title:            t.Title,
+		}
+		// フロントマターをJSON形式で出力
+		b, err := json.Marshal(dto)
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(b))
+		return nil
 	},
+}
+
+type ticketDTO struct {
+	Key              string  `json:"key"`
+	ParentKey        string  `json:"parentKey"`
+	Type             string  `json:"type"`
+	Status           string  `json:"status"`
+	Assignee         string  `json:"assignee"`
+	Reporter         string  `json:"reporter"`
+	CreatedAt        string  `json:"created_at"`
+	UpdatedAt        string  `json:"updated_at"`
+	OriginalEstimate float64 `json:"original_estimate"`
+	URL              string  `json:"url"`
+	Title            string  `json:"title"`
 }
 
 type grepModel struct {
@@ -78,7 +116,7 @@ type ticketItem struct {
 	content string
 }
 
-func newGrepModel(tickets []*ticket.Ticket, configDir string) (_ grepModel, err error) {
+func newGrepModel(tickets []*ticket.Ticket, configDir string) (_ *grepModel, err error) {
 	defer derrors.Wrap(&err)
 	input := textinput.New()
 	input.Focus()
@@ -88,7 +126,7 @@ func newGrepModel(tickets []*ticket.Ticket, configDir string) (_ grepModel, err 
 		glamour.WithEmoji(),
 	)
 	if err != nil {
-		return grepModel{}, err
+		return nil, err
 	}
 
 	// updated_atの降順でソート
@@ -109,7 +147,7 @@ func newGrepModel(tickets []*ticket.Ticket, configDir string) (_ grepModel, err 
 		})
 	}
 
-	model := grepModel{
+	model := &grepModel{
 		input:         input,
 		mdRenderer:    mdRenderer,
 		tickets:       items,
@@ -127,11 +165,11 @@ func newGrepModel(tickets []*ticket.Ticket, configDir string) (_ grepModel, err 
 	return model, nil
 }
 
-func (m grepModel) Init() tea.Cmd {
+func (m *grepModel) Init() tea.Cmd {
 	return tea.ClearScreen
 }
 
-func (m grepModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *grepModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -308,7 +346,7 @@ var (
 			Foreground(lipgloss.Color("241"))
 )
 
-func (m grepModel) View() string {
+func (m *grepModel) View() string {
 	// 最小限の表示を保証
 	if m.width == 0 {
 		m.width = 80
@@ -370,7 +408,7 @@ func (m grepModel) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, header, body)
 }
 
-func (m grepModel) renderLeftPane(width, height int) string {
+func (m *grepModel) renderLeftPane(width, height int) string {
 	var items []string
 
 	start := 0
@@ -405,7 +443,7 @@ func (m grepModel) renderLeftPane(width, height int) string {
 	return strings.Join(items, "\n")
 }
 
-func (m grepModel) renderCenterPane(width, height int) string {
+func (m *grepModel) renderCenterPane(width, height int) string {
 	if len(m.filteredItems) == 0 || m.cursor >= len(m.filteredItems) {
 		emptyMsg := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("241")).
@@ -429,7 +467,7 @@ func (m grepModel) renderCenterPane(width, height int) string {
 	return lipgloss.NewStyle().Width(width - 2).MaxWidth(width).Render(content)
 }
 
-func (m grepModel) renderRightPane(width, height int) string {
+func (m *grepModel) renderRightPane(width, height int) string {
 	if len(m.filteredItems) == 0 || m.cursor >= len(m.filteredItems) {
 		emptyMsg := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("241")).
@@ -542,6 +580,25 @@ func (m grepModel) renderRightPane(width, height int) string {
 	}
 
 	return strings.Join(items, "\n")
+}
+
+func (m *grepModel) Selected() *ticket.Ticket {
+	if len(m.filteredItems) == 0 || m.cursor >= len(m.filteredItems) {
+		return nil
+	}
+
+	selectedKey := m.filteredItems[m.cursor].key
+	for _, t := range m.tickets {
+		if t.key == selectedKey {
+			// ファイルからTicketを読み込んで返す
+			ticketData, err := ticket.FromFile(filepath.Join(m.configDir, t.key+".md"))
+			if err == nil {
+				return ticketData
+			}
+			break
+		}
+	}
+	return nil
 }
 
 func loadTickets(dir string) ([]*ticket.Ticket, error) {
