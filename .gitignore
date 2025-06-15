@@ -5,4 +5,4 @@ bin/
 vendor/
 ticket.yml
 tkt.yml
-docs/
+/docs/
