@@ -58,13 +58,13 @@ Open and edit the Markdown files in your preferred editor. Each ticket includes:
 
 ```markdown
 ---
-key: PROJ-123
+key: PRJ-123
 status: In Progress
-assignee: john.doe@example.com
+assignee: qawatake@example.com
 summary: Fix authentication bug
 ---
 
-# PROJ-123: Fix authentication bug
+# PRJ-123: Fix authentication bug
 
 ## Description
 
@@ -117,7 +117,8 @@ tkt diff
 ## Commands
 
 - `tkt init` - Initialize configuration in current directory
-- `tkt pull` - Download JIRA tickets as Markdown files
+- `tkt fetch` - Download JIRA tickets as Markdown files
+- `tkt pull` - Download JIRA tickets as Markdown files (fetch + merge)
 - `tkt push` - Upload local changes to JIRA
 - `tkt diff` - Show differences between local and remote (like git diff)
 - `tkt merge [ticket]` - Merge remote changes with local edits
