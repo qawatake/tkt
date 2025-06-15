@@ -1,4 +1,4 @@
-# tkt - JIRA Ticket CLI Tool
+# tkt
 
 tkt is a command-line tool that allows you to **pull JIRA tickets, edit them locally as Markdown, and push changes back**. Work with JIRA tickets using your favorite text editor and tools!
 
