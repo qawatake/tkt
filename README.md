@@ -80,22 +80,22 @@ Syncs your local changes back to JIRA.
 
 ### SQL Queries
 
-Query ticket metadata using SQL syntax:
+Query ticket metadata interactively using SQL syntax:
 
 ![SQL Query Demo](./assets/tapes/dist/query.gif)
 
 ```bash
-tkt query "SELECT key, status, assignee FROM tickets WHERE status = 'In Progress'"
+tkt query
 ```
 
 ### Full-text Search
 
-Search through ticket content:
+Search through ticket content interactively:
 
 ![Search Demo](./assets/tapes/dist/grep.gif)
 
 ```bash
-tkt grep "authentication bug"
+tkt grep
 ```
 
 ### Diff Tracking
@@ -113,8 +113,8 @@ tkt diff PROJ-123
 - `tkt push` - Upload local changes to JIRA
 - `tkt diff [ticket]` - Show differences between local and remote
 - `tkt merge [ticket]` - Merge remote changes with local edits
-- `tkt query <sql>` - Query ticket metadata with SQL
-- `tkt grep <pattern>` - Search ticket content
+- `tkt query` - Interactive SQL queries for ticket metadata
+- `tkt grep` - Interactive full-text search through ticket content
 
 ## Configuration
 
