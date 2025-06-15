@@ -88,7 +88,7 @@ Syncs your local changes back to JIRA.
 
 ### SQL Queries
 
-Query ticket metadata interactively using SQL syntax:
+Query ticket metadata interactively using SQL syntax (requires [DuckDB](https://duckdb.org/docs/installation/) to be installed):
 
 ![SQL Query Demo](./assets/tapes/dist/query.gif)
 
@@ -122,7 +122,7 @@ tkt diff
 - `tkt push` - Upload local changes to JIRA
 - `tkt diff` - Show differences between local and remote (like git diff)
 - `tkt merge` - Merge remote changes with local edits
-- `tkt query` - Interactive SQL queries for ticket metadata
+- `tkt query` - Interactive SQL queries for ticket metadata (requires DuckDB)
 - `tkt grep` - Interactive full-text search through ticket content
 
 
