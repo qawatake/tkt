@@ -28,7 +28,15 @@ go install github.com/qawatake/tkt/cmd/tkt@latest
 
 ## Quick Start
 
-### 1. Initialize Configuration
+### 1. Set up JIRA API Token
+
+First, create a JIRA API token at https://id.atlassian.com/manage-profile/security/api-tokens and set it as an environment variable:
+
+```bash
+export JIRA_API_TOKEN=your_token_here
+```
+
+### 2. Initialize Configuration
 
 ```bash
 tkt init
@@ -36,7 +44,7 @@ tkt init
 
 This creates a `tkt.yml` configuration file in your current directory with your JIRA server details and authentication.
 
-### 2. Pull Tickets
+### 3. Pull Tickets
 
 ```bash
 tkt pull
@@ -44,7 +52,7 @@ tkt pull
 
 Downloads JIRA tickets as Markdown files to `./tmp/` (configurable).
 
-### 3. Edit Locally
+### 4. Edit Locally
 
 Open and edit the Markdown files in your preferred editor. Each ticket includes:
 
@@ -68,7 +76,7 @@ The authentication system has a bug that prevents users from logging in...
 - [ ] Error messages are clear
 ```
 
-### 4. Push Changes
+### 5. Push Changes
 
 ```bash
 tkt push
@@ -100,10 +108,10 @@ tkt grep
 
 ### Diff Tracking
 
-View differences between local and remote versions:
+View differences between local and remote versions (similar to git diff):
 
 ```bash
-tkt diff PROJ-123
+tkt diff
 ```
 
 ## Commands
@@ -111,24 +119,9 @@ tkt diff PROJ-123
 - `tkt init` - Initialize configuration in current directory
 - `tkt pull` - Download JIRA tickets as Markdown files
 - `tkt push` - Upload local changes to JIRA
-- `tkt diff [ticket]` - Show differences between local and remote
+- `tkt diff` - Show differences between local and remote (like git diff)
 - `tkt merge [ticket]` - Merge remote changes with local edits
 - `tkt query` - Interactive SQL queries for ticket metadata
 - `tkt grep` - Interactive full-text search through ticket content
 
-## Configuration
-
-Configuration is stored in `ticket.yml` in your current working directory:
-
-```yaml
-server: https://your-company.atlassian.net
-login: your-email@company.com
-project: PROJ
-output_dir: ./tmp
-cache_dir: ~/.cache/tkt
-```
-
-### Environment Variables
-
-- `JIRA_API_TOKEN` - Your JIRA API token (required)
 
