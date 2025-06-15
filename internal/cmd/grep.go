@@ -327,7 +327,12 @@ func (m grepModel) View() string {
 		Render(centerPane)
 
 	// 右ペイン（フロントマター）
-	rightPane := m.renderRightPane(rightWidth-2, availableHeight-2)
+	rightPane :=
+		lipgloss.NewStyle().
+			MaxHeight(availableHeight - 2).
+			Render(
+				m.renderRightPane(rightWidth-2, availableHeight-2),
+			)
 	rightPaneStyled := borderStyle.
 		Width(rightWidth - 2).
 		Height(availableHeight - 2).
