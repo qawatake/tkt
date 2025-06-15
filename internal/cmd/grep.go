@@ -7,9 +7,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/mattn/go-runewidth"
 	"github.com/qawatake/tkt/internal/config"
 	"github.com/qawatake/tkt/internal/ticket"
 	"github.com/spf13/cobra"
@@ -250,19 +251,6 @@ func (m *grepModel) filterItems() {
 	}
 }
 
-// truncateString は文字列を指定幅内に効率的にトリミングします
-func truncateString(s string, width int) string {
-	if width <= 3 {
-		return "..."[:width] // 幅が3以下の場合は...を短縮
-	}
-
-	truncated := runewidth.Truncate(s, width-3, "")
-	if runewidth.StringWidth(s) > width {
-		return truncated + "..."
-	}
-	return s
-}
-
 var (
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
@@ -369,7 +357,7 @@ func (m grepModel) renderLeftPane(width, height int) string {
 		}
 
 		// 幅に合わせてトリミング
-		line = truncateString(line, width)
+		line = ansi.TruncateWc(line, width, "…")
 
 		if i == m.cursor {
 			line = selectedStyle.Width(width).Render(line)
