@@ -243,7 +243,8 @@ func runInit() error {
 }
 
 func fetchProjects(serverURL, email, apiToken string) ([]JiraProject, error) {
-	url := serverURL + "/rest/api/3/project"
+	// 直近20件だ十分なはず。
+	url := serverURL + "/rest/api/3/project?recent=20"
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", url, nil)
 	if err != nil {
