@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	tty "github.com/mattn/go-tty"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/qawatake/tkt/internal/config"
@@ -60,6 +61,7 @@ var grepCmd = &cobra.Command{
 }
 
 type grepModel struct {
+	input         textinput.Model
 	mdRenderer    *glamour.TermRenderer
 	tickets       []ticketItem
 	filteredItems []ticketItem
@@ -78,6 +80,9 @@ type ticketItem struct {
 
 func newGrepModel(tickets []*ticket.Ticket, configDir string) (_ grepModel, err error) {
 	defer derrors.Wrap(&err)
+	input := textinput.New()
+	input.Focus()
+
 	mdRenderer, err := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
 		glamour.WithEmoji(),
@@ -105,6 +110,7 @@ func newGrepModel(tickets []*ticket.Ticket, configDir string) (_ grepModel, err 
 	}
 
 	model := grepModel{
+		input:         input,
 		mdRenderer:    mdRenderer,
 		tickets:       items,
 		filteredItems: items,
@@ -245,7 +251,12 @@ func (m grepModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	return m, nil
+	cmds := make([]tea.Cmd, 0)
+	input, cmd := m.input.Update(msg)
+	m.input = input
+	cmds = append(cmds, cmd)
+
+	return m, tea.Batch(cmds...)
 }
 
 func (m *grepModel) filterItems() {
@@ -307,7 +318,7 @@ func (m grepModel) View() string {
 	}
 
 	// ヘッダー部分
-	header := searchStyle.Render(fmt.Sprintf("Search: %s_", m.searchQuery))
+	header := m.input.View()
 
 	if len(m.filteredItems) == 0 {
 		emptyMsg := lipgloss.NewStyle().
