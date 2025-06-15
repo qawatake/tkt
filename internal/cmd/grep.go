@@ -368,11 +368,6 @@ func (m grepModel) renderLeftPane(width, height int) string {
 		items = append(items, line)
 	}
 
-	// 残りの高さを空行で埋める
-	for len(items) < height {
-		items = append(items, lipgloss.NewStyle().Width(width).Render(""))
-	}
-
 	return strings.Join(items, "\n")
 }
 
@@ -428,11 +423,6 @@ func (m grepModel) renderRightPane(width, height int) string {
 
 		var items []string
 		items = append(items, emptyMsg)
-
-		// 残りの高さを空行で埋める
-		for len(items) < height {
-			items = append(items, lipgloss.NewStyle().Width(width).Render(""))
-		}
 
 		return strings.Join(items, "\n")
 	}
