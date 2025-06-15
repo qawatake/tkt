@@ -440,9 +440,6 @@ func (m grepModel) renderRightPane(width, height int) string {
 		frontmatterStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("33"))
 		valueStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 
-		items = append(items, frontmatterStyle.Render("Metadata"))
-		items = append(items, "")
-
 		if selectedTicket.Key != "" {
 			items = append(items, fmt.Sprintf("%s: %s",
 				frontmatterStyle.Render("Key"),
