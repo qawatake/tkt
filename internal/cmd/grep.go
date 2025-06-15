@@ -356,7 +356,7 @@ func (m grepModel) renderLeftPane(width, height int) string {
 		item := m.filteredItems[i]
 
 		// キーを固定幅（12文字）で左詰めパディング
-		keyPadded := fmt.Sprintf("%-12s", item.key)
+		keyPadded := fmt.Sprintf("%-9s", item.key)
 		line := keyPadded
 
 		// タイトルがある場合は表示
