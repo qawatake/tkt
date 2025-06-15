@@ -207,6 +207,13 @@ func FromFile(filePath string) (*Ticket, error) {
 	if updatedAt, ok := frontMatter["updated_at"].(time.Time); ok {
 		ticket.UpdatedAt = updatedAt
 	}
+	if originalEstimate, ok := frontMatter["original_estimate"].(float64); ok {
+		fmt.Fprintln(os.Stderr, "Original Estimate:", originalEstimate)
+		ticket.OriginalEstimate = NewHour(time.Duration(originalEstimate * float64(time.Hour)))
+	} else if originalEstimate, ok := frontMatter["original_estimate"].(int); ok {
+		fmt.Fprintln(os.Stderr, "Original Estimate:", originalEstimate)
+		ticket.OriginalEstimate = NewHour(time.Duration(originalEstimate * int(time.Hour)))
+	}
 	if url, ok := frontMatter["url"].(string); ok {
 		ticket.URL = url
 	}
