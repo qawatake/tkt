@@ -15,6 +15,7 @@ require (
 	github.com/go-git/go-git/v5 v5.16.0
 	github.com/k1LoW/errors v1.0.0
 	github.com/ktr0731/go-fuzzyfinder v0.9.0
+	github.com/mattn/go-tty v0.0.7
 	github.com/russross/blackfriday/v2 v2.1.0
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3
 	github.com/sourcegraph/conc v0.3.0

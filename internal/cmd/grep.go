@@ -9,12 +9,13 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/glamour"
-
 	"github.com/charmbracelet/x/ansi"
+	tty "github.com/mattn/go-tty"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/qawatake/tkt/internal/config"
+	"github.com/qawatake/tkt/internal/derrors"
 	"github.com/qawatake/tkt/internal/ticket"
 	"github.com/spf13/cobra"
 )
@@ -24,7 +25,8 @@ var grepCmd = &cobra.Command{
 	Aliases: []string{"g"},
 	Short:   "ローカルのファイルを全文検索します",
 	Long:    `ローカルのファイルを全文検索します。チケットのkeyと内容を表示します。`,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, args []string) (err error) {
+		defer derrors.Wrap(&err)
 		// デフォルトでキャッシュディレクトリを使用
 		cacheDir, err := config.EnsureCacheDir()
 		if err != nil {
@@ -40,16 +42,25 @@ var grepCmd = &cobra.Command{
 		if len(tickets) == 0 {
 			return fmt.Errorf("チケットが見つかりません")
 		}
+		tty, err := tty.Open()
+		if err != nil {
+			return err
+		}
+		defer tty.Close()
 
 		// Bubble Teaアプリを起動
-		model := newGrepModel(tickets, cacheDir)
-		p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+		model, err := newGrepModel(tickets, cacheDir)
+		if err != nil {
+			return err
+		}
+		p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithOutput(tty.Output()), tea.WithMouseCellMotion())
 		_, err = p.Run()
 		return err
 	},
 }
 
 type grepModel struct {
+	mdRenderer    *glamour.TermRenderer
 	tickets       []ticketItem
 	filteredItems []ticketItem
 	searchQuery   string
@@ -65,7 +76,16 @@ type ticketItem struct {
 	content string
 }
 
-func newGrepModel(tickets []*ticket.Ticket, configDir string) grepModel {
+func newGrepModel(tickets []*ticket.Ticket, configDir string) (_ grepModel, err error) {
+	defer derrors.Wrap(&err)
+	mdRenderer, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithEmoji(),
+	)
+	if err != nil {
+		return grepModel{}, err
+	}
+
 	// updated_atの降順でソート
 	sort.Slice(tickets, func(i, j int) bool {
 		return tickets[i].UpdatedAt.After(tickets[j].UpdatedAt)
@@ -85,6 +105,7 @@ func newGrepModel(tickets []*ticket.Ticket, configDir string) grepModel {
 	}
 
 	model := grepModel{
+		mdRenderer:    mdRenderer,
 		tickets:       items,
 		filteredItems: items,
 		searchQuery:   "",
@@ -97,7 +118,7 @@ func newGrepModel(tickets []*ticket.Ticket, configDir string) grepModel {
 		model.cursor = 0
 	}
 
-	return model
+	return model, nil
 }
 
 func (m grepModel) Init() tea.Cmd {
@@ -286,13 +307,7 @@ func (m grepModel) View() string {
 	}
 
 	// ヘッダー部分
-	searchDisplay := searchStyle.Render(fmt.Sprintf("Search: %s_", m.searchQuery))
-	helpText := helpStyle.Render(fmt.Sprintf("Found %d tickets • ctrl+p/n or ↑/↓:navigate • ctrl+h:delete • ctrl+k:clear • enter:select • ctrl+c:quit", len(m.filteredItems)))
-
-	header := lipgloss.JoinVertical(lipgloss.Left,
-		searchDisplay,
-		helpText,
-	)
+	header := searchStyle.Render(fmt.Sprintf("Search: %s_", m.searchQuery))
 
 	if len(m.filteredItems) == 0 {
 		emptyMsg := lipgloss.NewStyle().
@@ -394,8 +409,7 @@ func (m grepModel) renderCenterPane(width, height int) string {
 	}
 
 	content := m.filteredItems[m.cursor].content
-	// FIXME: dark
-	content, err := glamour.Render(content, "dark")
+	content, err := m.mdRenderer.Render(content)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		panic(err)
