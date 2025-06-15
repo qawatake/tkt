@@ -121,7 +121,7 @@ tkt diff
 - `tkt pull` - Download JIRA tickets as Markdown files (fetch + merge)
 - `tkt push` - Upload local changes to JIRA
 - `tkt diff` - Show differences between local and remote (like git diff)
-- `tkt merge [ticket]` - Merge remote changes with local edits
+- `tkt merge` - Merge remote changes with local edits
 - `tkt query` - Interactive SQL queries for ticket metadata
 - `tkt grep` - Interactive full-text search through ticket content
 
