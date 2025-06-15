@@ -325,7 +325,11 @@ func (m grepModel) View() string {
 		Render(leftPane)
 
 	// 中央ペイン（チケット内容）
-	centerPane := m.renderCenterPane(centerWidth-2, availableHeight-2)
+	centerPane := lipgloss.NewStyle().
+		MaxHeight(availableHeight - 2).
+		Render(
+			m.renderCenterPane(centerWidth-2, availableHeight-2),
+		)
 	centerPaneStyled := borderStyle.
 		Width(centerWidth - 2).
 		Height(availableHeight - 2).
@@ -411,7 +415,6 @@ func (m grepModel) renderCenterPane(width, height int) string {
 	var items []string
 	for i := 0; i < height && i < len(lines); i++ {
 		line := lines[i]
-		line = truncateString(line, width)
 
 		// マークダウンのヘッダーをハイライト
 		if strings.HasPrefix(line, "#") {
@@ -422,11 +425,6 @@ func (m grepModel) renderCenterPane(width, height int) string {
 		}
 
 		items = append(items, lipgloss.NewStyle().Width(width).Render(line))
-	}
-
-	// 残りの高さを空行で埋める
-	for len(items) < height {
-		items = append(items, lipgloss.NewStyle().Width(width).Render(""))
 	}
 
 	return strings.Join(items, "\n")
