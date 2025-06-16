@@ -463,15 +463,50 @@ func (c *Client) Search(ctx context.Context, jql JQL, startAt, maxResults int) (
 
 func (c *Client) Get(ctx context.Context, key string) (_ *Issue, err error) {
 	defer derrors.Wrap(&err)
-	jql := JQL(fmt.Sprintf(`key = "%s"`, key))
-	result, err := c.Search(ctx, jql, 0, 1)
+
+	fields := []string{
+		"issuetype",
+		"timeoriginalestimate",
+		"aggregatetimeoriginalestimate",
+		"summary",
+		"created",
+		"status",
+		"updated",
+		"assignee",
+		"description",
+		"reporter",
+		"parent",
+	}
+
+	url := fmt.Sprintf("%s/rest/api/3/issue/%s?fields=%s", c.config.Server, key, strings.Join(fields, ","))
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
-	if len(result.Issues) == 0 {
+	req.SetBasicAuth(c.config.Login, getAPIToken())
+
+	client := &http.Client{}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("JIRAチケットが見つかりません: %s", key)
 	}
-	return result.Issues[0], nil
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.New("JIRA APIリクエストが失敗しました: " + resp.Status)
+	}
+
+	var issue Issue
+	if err := json.NewDecoder(resp.Body).Decode(&issue); err != nil {
+		return nil, err
+	}
+
+	return &issue, nil
 }
 
 // BulkFetchIssues は複数のJIRAチケットを一括で取得します
