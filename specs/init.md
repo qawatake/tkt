@@ -22,4 +22,4 @@ https://github.com/ankitpokhrel/jira-cli と同じように設定をインタラ
 7. [x] taskやエピックの情報を取得する。(要するにissue typeの情報を取得する。)
 8. [x] 設定ファイル名を`ticket.yml`から`tkt.yml`に変更する。
 9. [x] デフォルトのjqlにupdatedの条件も追加して、大量のチケットが取得されないようにする。
-10. [ ] issue typeを取得するのに利用するAPIを"/rest/api/3/issuetype"ではなく、"/rest/api/3/project/{projectId}"に変更する。
+10. [x] issue typeを取得するのに利用するAPIを"/rest/api/3/issuetype"ではなく、"/rest/api/3/project/{projectId}"に変更する。
