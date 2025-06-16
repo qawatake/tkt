@@ -58,7 +58,7 @@ var fetchCmd = &cobra.Command{
 			verbose.Printf("%d 件のチケットを取得しました\n", len(tickets))
 
 			// 5. キャッシュディレクトリを確保
-			cacheDir, err := config.EnsureCacheDir()
+			cacheDir, err := config.ClearCacheDir()
 			if err != nil {
 				return 0, fmt.Errorf("キャッシュディレクトリの作成に失敗しました: %v", err)
 			}

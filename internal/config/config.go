@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/qawatake/tkt/internal/derrors"
 	"github.com/spf13/viper"
 )
 
@@ -102,6 +103,35 @@ func EnsureCacheDir() (string, error) {
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
 		return "", fmt.Errorf("キャッシュディレクトリの作成に失敗しました: %v", err)
 	}
+	return cacheDir, nil
+}
+
+// ClearCacheDir はキャッシュディレクトリを削除し、再作成します
+func ClearCacheDir() (_ string, err error) {
+	defer derrors.Wrap(&err)
+
+	config, err := LoadConfig()
+	if err != nil {
+		return "", err
+	}
+
+	workDir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+
+	cacheDir := getCacheDir(config, workDir)
+
+	// キャッシュディレクトリを削除
+	if err := os.RemoveAll(cacheDir); err != nil {
+		return "", err
+	}
+
+	// 再度ディレクトリを作成
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		return "", err
+	}
+
 	return cacheDir, nil
 }
 
