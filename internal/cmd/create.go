@@ -14,8 +14,9 @@ import (
 )
 
 var createCmd = &cobra.Command{
-	Use:   "create",
-	Short: "新しいJIRAチケットをインタラクティブに作成します",
+	Use:     "create",
+	Aliases: []string{"c"},
+	Short:   "新しいJIRAチケットをインタラクティブに作成します",
 	Long: `新しいJIRAチケットをインタラクティブに作成します。
 タイトル、タイプを入力し、vimエディタでボディを編集できます。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
