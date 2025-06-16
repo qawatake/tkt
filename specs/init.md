@@ -21,4 +21,4 @@ https://github.com/ankitpokhrel/jira-cli と同じように設定をインタラ
 6. [x] ボードやプロジェクトを選ぶときはpecoのようにfuzzy searchできるようにする。
 7. [x] taskやエピックの情報を取得する。(要するにissue typeの情報を取得する。)
 8. [x] 設定ファイル名を`ticket.yml`から`tkt.yml`に変更する。
-9. [ ] デフォルトのjqlにupdatedの条件も追加して、大量のチケットが取得されないようにする。
+9. [x] デフォルトのjqlにupdatedの条件も追加して、大量のチケットが取得されないようにする。

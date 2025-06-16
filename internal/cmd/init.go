@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/ktr0731/go-fuzzyfinder"
 	"github.com/qawatake/tkt/internal/config"
@@ -153,7 +154,8 @@ func runInit() error {
 
 	// 8. JQLを入力
 	fmt.Println()
-	defaultJQL := fmt.Sprintf("project = %s", selectedProject.Key)
+	updatedAtThreshold := time.Now().AddDate(0, -6, 0)
+	defaultJQL := fmt.Sprintf("project = %s AND updated >= '%s'", selectedProject.Key, updatedAtThreshold.Format("2006-01-02"))
 	jqlInput, err := ui.PromptForText(fmt.Sprintf("JQL (デフォルト: %s):", defaultJQL), defaultJQL, false)
 	if err != nil {
 		return fmt.Errorf("JQL入力がキャンセルされました: %v", err)
