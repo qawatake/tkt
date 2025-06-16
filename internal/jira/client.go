@@ -259,28 +259,12 @@ func (c *Client) CreateIssue(ticket *ticket.Ticket) (*ticket.Ticket, error) {
 
 	verbose.Printf("チケットタイプ '%s' を検索中 (プロジェクト: %s, ID: %s)\n", ticket.Type, c.config.Project.Key, c.config.Project.ID)
 
-	// createコマンドと同じロジック：プロジェクト固有のものを優先する
+	// プロジェクト固有のAPIから取得したすべてのIssue Typeを使用
 	typeMap := make(map[string]config.IssueType)
 	for _, issueType := range c.config.Issue.Types {
-		verbose.Printf("  候補: %s (ID: %s, Scope: %v)\n", issueType.Name, issueType.ID, issueType.Scope)
-
-		// プロジェクト固有のIssue Typeのみを許可
-		if issueType.Scope != nil && issueType.Scope.Project.ID == c.config.Project.ID {
-			_, exists := typeMap[issueType.Name]
-			if !exists {
-				// 初回の場合は追加
-				typeMap[issueType.Name] = issueType
-				verbose.Printf("    -> 追加 (プロジェクト固有)\n")
-			} else {
-				// 既存がある場合も置き換え（プロジェクト固有同士なので）
-				typeMap[issueType.Name] = issueType
-				verbose.Printf("    -> 置き換え (プロジェクト固有)\n")
-			}
-		} else if issueType.Scope == nil {
-			verbose.Printf("    -> スキップ (グローバルタイプ)\n")
-		} else {
-			verbose.Printf("    -> スキップ (他プロジェクト)\n")
-		}
+		verbose.Printf("  候補: %s (ID: %s)\n", issueType.Name, issueType.ID)
+		typeMap[issueType.Name] = issueType
+		verbose.Printf("    -> 追加\n")
 	}
 
 	// 指定されたタイプが見つかるかチェック

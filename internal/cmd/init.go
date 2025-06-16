@@ -48,12 +48,6 @@ type JiraIssueType struct {
 	Name             string `json:"name"`
 	UntranslatedName string `json:"untranslatedName"`
 	Subtask          bool   `json:"subtask"`
-	Scope            *struct {
-		Type    string `json:"type"`
-		Project struct {
-			ID string `json:"id"`
-		} `json:"project"`
-	} `json:"scope"`
 }
 
 func runInit() error {
@@ -166,7 +160,7 @@ func runInit() error {
 
 	// 9. Issue typesを取得
 	issueTypes, err := ui.WithSpinnerValue("Issue Types一覧を取得中...", func() ([]JiraIssueType, error) {
-		return fetchIssueTypes(serverURL, loginEmail, apiToken)
+		return fetchIssueTypes(serverURL, loginEmail, apiToken, selectedProject.ID)
 	})
 	if err != nil {
 		return fmt.Errorf("issue Types一覧の取得に失敗しました: %v", err)
@@ -210,16 +204,6 @@ func runInit() error {
 			Name:             issueType.Name,
 			UntranslatedName: issueType.UntranslatedName,
 			Subtask:          issueType.Subtask,
-		}
-
-		// Scopeがnullでない場合のみ設定
-		if issueType.Scope != nil && (issueType.Scope.Type != "" || issueType.Scope.Project.ID != "") {
-			issueTypeConfig.Scope = &config.IssueTypeScope{
-				Type: issueType.Scope.Type,
-				Project: config.IssueTypeScopeProject{
-					ID: issueType.Scope.Project.ID,
-				},
-			}
 		}
 
 		cfg.Issue.Types = append(cfg.Issue.Types, issueTypeConfig)
@@ -307,8 +291,8 @@ func fetchBoards(serverURL, email, apiToken, projectKey string) ([]JiraBoard, er
 	return response.Values, nil
 }
 
-func fetchIssueTypes(serverURL, email, apiToken string) ([]JiraIssueType, error) {
-	url := serverURL + "/rest/api/3/issuetype"
+func fetchIssueTypes(serverURL, email, apiToken, projectID string) ([]JiraIssueType, error) {
+	url := serverURL + "/rest/api/3/project/" + projectID
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", url, nil)
 	if err != nil {
@@ -329,10 +313,12 @@ func fetchIssueTypes(serverURL, email, apiToken string) ([]JiraIssueType, error)
 		return nil, fmt.Errorf("JIRA API request failed: %s", resp.Status)
 	}
 
-	var issueTypes []JiraIssueType
-	if err := json.NewDecoder(resp.Body).Decode(&issueTypes); err != nil {
+	var response struct {
+		IssueTypes []JiraIssueType `json:"issueTypes"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return nil, err
 	}
 
-	return issueTypes, nil
+	return response.IssueTypes, nil
 }

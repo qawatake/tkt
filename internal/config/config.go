@@ -9,25 +9,13 @@ import (
 	"github.com/spf13/viper"
 )
 
-// IssueTypeScopeProject はIssue TypeスコープのProject情報を表します
-type IssueTypeScopeProject struct {
-	ID string `mapstructure:"id" yaml:"id"`
-}
-
-// IssueTypeScope はIssue Typeのスコープ情報を表します
-type IssueTypeScope struct {
-	Type    string                `mapstructure:"type" yaml:"type"`
-	Project IssueTypeScopeProject `mapstructure:"project" yaml:"project"`
-}
-
 // IssueType はJIRAのIssue Type情報を表します
 type IssueType struct {
-	ID               string          `mapstructure:"id" yaml:"id"`
-	Description      string          `mapstructure:"description" yaml:"description"`
-	Name             string          `mapstructure:"name" yaml:"name"`
-	UntranslatedName string          `mapstructure:"untranslated_name" yaml:"untranslated_name"`
-	Subtask          bool            `mapstructure:"subtask" yaml:"subtask"`
-	Scope            *IssueTypeScope `mapstructure:"scope" yaml:"scope,omitempty"`
+	ID               string `mapstructure:"id" yaml:"id"`
+	Description      string `mapstructure:"description" yaml:"description"`
+	Name             string `mapstructure:"name" yaml:"name"`
+	UntranslatedName string `mapstructure:"untranslated_name" yaml:"untranslated_name"`
+	Subtask          bool   `mapstructure:"subtask" yaml:"subtask"`
 }
 
 // Config は設定ファイルの構造体です

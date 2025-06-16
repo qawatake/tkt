@@ -46,28 +46,8 @@ func runCreate() error {
 	// 2. チケットタイプを選択 (プロジェクトに対応するもののみ)
 	var availableTypes []config.IssueType
 
-	// 現在のプロジェクトのIssue Typesのみをフィルタリング
-	// 同じ名前の場合、プロジェクト固有のものを優先する
-	typeMap := make(map[string]config.IssueType)
-
-	for _, issueType := range cfg.Issue.Types {
-		// プロジェクト固有のIssue Typeのみを許可
-		if issueType.Scope != nil && issueType.Scope.Project.ID == cfg.Project.ID {
-			_, exists := typeMap[issueType.Name]
-			if !exists {
-				// 初回の場合は追加
-				typeMap[issueType.Name] = issueType
-			} else {
-				// 既存がある場合も置き換え（プロジェクト固有同士なので）
-				typeMap[issueType.Name] = issueType
-			}
-		}
-	}
-
-	// マップから配列に変換
-	for _, issueType := range typeMap {
-		availableTypes = append(availableTypes, issueType)
-	}
+	// プロジェクト固有のAPIから取得したすべてのIssue Typeを使用
+	availableTypes = cfg.Issue.Types
 
 	if len(availableTypes) == 0 {
 		return fmt.Errorf("プロジェクト '%s' に対応するチケットタイプが見つかりません", cfg.Project.Key)
