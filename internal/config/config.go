@@ -60,6 +60,8 @@ type Config struct {
 				} `mapstructure:"schema" yaml:"schema"`
 			} `mapstructure:"custom" yaml:"custom"`
 		} `mapstructure:"fields" yaml:"fields"`
+		// プロジェクトで利用可能なIssue Typeのリスト
+		// チケットを作成するときはこの中から選択する必要があります。
 		Types []IssueType `mapstructure:"types" yaml:"types"`
 	} `mapstructure:"issue" yaml:"issue"`
 	JQL       string `mapstructure:"jql" yaml:"jql"`
