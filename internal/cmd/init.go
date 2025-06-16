@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -292,7 +293,9 @@ func fetchBoards(serverURL, email, apiToken, projectKey string) ([]JiraBoard, er
 }
 
 func fetchIssueTypes(serverURL, email, apiToken, projectID string) ([]JiraIssueType, error) {
-	url := serverURL + "/rest/api/3/project/" + projectID
+	v := url.Values{}
+	v.Add("projectId", projectID)
+	url := serverURL + "/rest/api/3/issuetype/project?" + v.Encode()
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", url, nil)
 	if err != nil {
@@ -313,12 +316,10 @@ func fetchIssueTypes(serverURL, email, apiToken, projectID string) ([]JiraIssueT
 		return nil, fmt.Errorf("JIRA API request failed: %s", resp.Status)
 	}
 
-	var response struct {
-		IssueTypes []JiraIssueType `json:"issueTypes"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+	var issueTypes []JiraIssueType
+	if err := json.NewDecoder(resp.Body).Decode(&issueTypes); err != nil {
 		return nil, err
 	}
 
-	return response.IssueTypes, nil
+	return issueTypes, nil
 }
