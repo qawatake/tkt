@@ -24,6 +24,7 @@ type Ticket struct {
 	UpdatedAt        time.Time `yaml:"updated_at"`
 	OriginalEstimate Hour      `yaml:"original_estimate"`
 	URL              string    `yaml:"url"`
+	SprintName       string    `yaml:"sprint_name"`
 	Title            string    `yaml:"-"`
 	Body             string    `yaml:"-"`
 	FilePath         string    `yaml:"-"`
@@ -125,6 +126,9 @@ func (t *Ticket) ToMarkdown() string {
 	if t.URL != "" {
 		frontMatterData["url"] = t.URL
 	}
+	if t.SprintName != "" {
+		frontMatterData["sprint_name"] = t.SprintName
+	}
 
 	frontMatter := markdown.CreateFrontMatter(frontMatterData)
 
@@ -215,6 +219,9 @@ func FromFile(filePath string) (*Ticket, error) {
 	if url, ok := frontMatter["url"].(string); ok {
 		ticket.URL = url
 	}
+	if sprintName, ok := frontMatter["sprint_name"].(string); ok {
+		ticket.SprintName = sprintName
+	}
 
 	// 本文をそのまま設定
 	ticket.Body = body
@@ -241,6 +248,11 @@ func (t *Ticket) ToMarkdownWithoutReadonly() string {
 	// statusが設定されている場合は含める
 	if t.Status != "" {
 		frontMatterData["status"] = t.Status
+	}
+
+	// sprint_nameが設定されている場合は含める
+	if t.SprintName != "" {
+		frontMatterData["sprint_name"] = t.SprintName
 	}
 
 	frontMatter := markdown.CreateFrontMatter(frontMatterData)

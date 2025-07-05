@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 
 	"github.com/ktr0731/go-fuzzyfinder"
 	"github.com/qawatake/tkt/internal/config"
+	"github.com/qawatake/tkt/internal/jira"
 	"github.com/qawatake/tkt/internal/ticket"
 	"github.com/qawatake/tkt/internal/ui"
 	"github.com/spf13/cobra"
@@ -71,22 +73,90 @@ func runCreate() error {
 	}
 	selectedType := availableTypes[typeIdx].Name
 
-	// 3. ボディをvimエディタで入力
+	// 3. スプリント選択
+	var selectedSprintName string
+
+	if cfg.Board.ID != 0 {
+		// JIRAクライアントを作成
+		jiraClient, err := jira.NewClient(cfg)
+		if err != nil {
+			return fmt.Errorf("JIRAクライアントの作成に失敗しました: %v", err)
+		}
+
+		// 全スプリントを取得
+		sprints, err := ui.WithSpinnerValue("スプリント情報を取得中...", func() ([]jira.Sprint, error) {
+			return jiraClient.GetBoardSprints(cfg.Board.ID)
+		})
+		if err != nil {
+			fmt.Printf("⚠️  スプリント情報の取得に失敗しました: %v\n", err)
+			fmt.Println("スプリントを選択せずに作成を続行します...")
+		} else if len(sprints) > 0 {
+			// スプリントを状態でソート（active -> future -> closed）
+			sort.Slice(sprints, func(i, j int) bool {
+				stateOrder := map[string]int{"active": 0, "future": 1, "closed": 2}
+				return stateOrder[sprints[i].State] < stateOrder[sprints[j].State]
+			})
+
+			// "スプリントに追加しない"オプションを先頭に追加
+			sprintOptions := []string{"スプリントに追加しない"}
+
+			for _, sprint := range sprints {
+				statusEmoji := ""
+				switch sprint.State {
+				case "active":
+					statusEmoji = "🟢 "
+				case "future":
+					statusEmoji = "🔵 "
+				case "closed":
+					statusEmoji = "⚫ "
+				}
+				sprintOptions = append(sprintOptions, fmt.Sprintf("%s%s (%s)", statusEmoji, sprint.Name, sprint.State))
+			}
+
+			fmt.Println("\n🏃 スプリントを選択してください:")
+			sprintIdx, err := fuzzyfinder.Find(
+				sprintOptions,
+				func(i int) string {
+					return sprintOptions[i]
+				},
+				fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
+					if i == 0 {
+						return "スプリントに追加しません"
+					}
+					s := sprints[i-1]
+					return fmt.Sprintf("スプリント: %s\nID: %d\n状態: %s\n開始日: %s\n終了日: %s",
+						s.Name, s.ID, s.State, s.StartDate, s.EndDate)
+				}),
+			)
+			if err != nil {
+				fmt.Printf("⚠️  スプリント選択がキャンセルされました: %v\n", err)
+				fmt.Println("スプリントを選択せずに作成を続行します...")
+			} else if sprintIdx > 0 {
+				// インデックス0は「スプリントに追加しない」なので、1以上の場合のみ設定
+				selectedSprintName = sprints[sprintIdx-1].Name
+			}
+		}
+	} else {
+		fmt.Println("\n⚠️  ボード設定が見つかりません。スプリント選択はスキップします。")
+	}
+
+	// 4. ボディをvimエディタで入力
 	fmt.Println("\n📝 ボディを編集します (vimエディタが開きます)...")
 	body, err := openEditor()
 	if err != nil {
 		return fmt.Errorf("エディタの起動に失敗しました: %v", err)
 	}
 
-	// 4. ローカルチケットを作成 (keyは空文字列、リモートが採番)
+	// 5. ローカルチケットを作成 (keyは空文字列、リモートが採番)
 	newTicket := &ticket.Ticket{
-		Key:   "", // リモートが採番するため空文字列
-		Title: title,
-		Type:  selectedType,
-		Body:  body,
+		Key:        "", // リモートが採番するため空文字列
+		Title:      title,
+		Type:       selectedType,
+		Body:       body,
+		SprintName: selectedSprintName,
 	}
 
-	// 5. ローカルファイルとして保存
+	// 6. ローカルファイルとして保存
 	fmt.Println("\n💾 ローカルファイルを保存中...")
 	filePath, err := ui.WithSpinnerValue("ローカルファイルを保存中...", func() (string, error) {
 		return newTicket.SaveToFile(cfg.Directory)
@@ -98,6 +168,9 @@ func runCreate() error {
 	fmt.Println("\n✅ ローカルチケットが作成されました！")
 	fmt.Printf("   タイトル: %s\n", newTicket.Title)
 	fmt.Printf("   タイプ: %s\n", newTicket.Type)
+	if selectedSprintName != "" {
+		fmt.Printf("   スプリント: %s\n", selectedSprintName)
+	}
 	fmt.Printf("   ファイル: %s\n", filePath)
 	fmt.Printf("   次のステップ: 'tkt push' でJIRAに同期してキーを取得\n")
 

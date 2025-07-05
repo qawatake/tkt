@@ -23,6 +23,17 @@ import (
 	"github.com/sourcegraph/conc/pool"
 )
 
+// Sprint はJIRAスプリントの情報を表します
+type Sprint struct {
+	ID           int    `json:"id"`
+	Name         string `json:"name"`
+	State        string `json:"state"`
+	BoardID      int    `json:"originBoardId"`
+	StartDate    string `json:"startDate"`
+	EndDate      string `json:"endDate"`
+	CompleteDate string `json:"completeDate"`
+}
+
 // Client はJIRA APIクライアントのラッパーです
 type Client struct {
 	jiraClient *jiralib.Client
@@ -478,7 +489,24 @@ func (c *Client) CreateIssue(ticket *ticket.Ticket) (*ticket.Ticket, error) {
 	}
 
 	// 作成されたチケットをfetchして正しいフォーマットで返す
-	return c.FetchIssue(newIssue.Key)
+	createdTicket, err := c.FetchIssue(newIssue.Key)
+	if err != nil {
+		return nil, err
+	}
+
+	// スプリントが指定されている場合は、チケットをスプリントに追加
+	if ticket.SprintName != "" {
+		sprintID, err := c.findSprintIDByName(ticket.SprintName)
+		if err != nil {
+			verbose.Printf("スプリントIDの解決に失敗しました: %v\n", err)
+		} else if sprintID != 0 {
+			if err := c.AddIssueToSprint(newIssue.Key, sprintID); err != nil {
+				verbose.Printf("スプリントへの追加に失敗しました: %v\n", err)
+			}
+		}
+	}
+
+	return createdTicket, nil
 }
 
 type SearchResult struct {
@@ -795,4 +823,128 @@ func (c *Client) bulkFetchBatch(ctx context.Context, keys []string) (_ []*Issue,
 	}
 
 	return result.Issues, nil
+}
+
+// GetBoardSprints は指定されたボードの全スプリントを取得します
+func (c *Client) GetBoardSprints(boardID int) ([]Sprint, error) {
+	url := fmt.Sprintf("%s/rest/agile/1.0/board/%d/sprint", c.config.Server, boardID)
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("HTTPリクエストの作成に失敗しました: %v", err)
+	}
+	req.SetBasicAuth(c.config.Login, getAPIToken())
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("HTTPリクエストの送信に失敗しました: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("スプリント取得に失敗しました (status: %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var response struct {
+		Values []Sprint `json:"values"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("レスポンスの解析に失敗しました: %v", err)
+	}
+
+	return response.Values, nil
+}
+
+// GetActiveSprints は指定されたボードのアクティブなスプリントを取得します
+func (c *Client) GetActiveSprints(boardID int) ([]Sprint, error) {
+	url := fmt.Sprintf("%s/rest/agile/1.0/board/%d/sprint?state=active", c.config.Server, boardID)
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("HTTPリクエストの作成に失敗しました: %v", err)
+	}
+	req.SetBasicAuth(c.config.Login, getAPIToken())
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("HTTPリクエストの送信に失敗しました: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("アクティブスプリント取得に失敗しました (status: %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var response struct {
+		Values []Sprint `json:"values"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("レスポンスの解析に失敗しました: %v", err)
+	}
+
+	return response.Values, nil
+}
+
+// AddIssueToSprint は指定されたチケットをスプリントに追加します
+func (c *Client) AddIssueToSprint(issueKey string, sprintID int) error {
+	url := fmt.Sprintf("%s/rest/agile/1.0/sprint/%d/issue", c.config.Server, sprintID)
+
+	reqBody := struct {
+		Issues []string `json:"issues"`
+	}{
+		Issues: []string{issueKey},
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return fmt.Errorf("リクエストボディの作成に失敗しました: %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return fmt.Errorf("HTTPリクエストの作成に失敗しました: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.SetBasicAuth(c.config.Login, getAPIToken())
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("HTTPリクエストの送信に失敗しました: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("スプリントへのチケット追加に失敗しました (status: %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	return nil
+}
+
+// findSprintIDByName はスプリント名からスプリントIDを解決します
+func (c *Client) findSprintIDByName(sprintName string) (int, error) {
+	// 設定からボードIDを取得
+	if c.config.Board.ID == 0 {
+		return 0, fmt.Errorf("ボード設定が見つかりません")
+	}
+
+	sprints, err := c.GetBoardSprints(c.config.Board.ID)
+	if err != nil {
+		return 0, fmt.Errorf("スプリント一覧の取得に失敗しました: %v", err)
+	}
+
+	for _, sprint := range sprints {
+		if sprint.Name == sprintName {
+			return sprint.ID, nil
+		}
+	}
+
+	return 0, fmt.Errorf("スプリント '%s' が見つかりません", sprintName)
 }
