@@ -3,4 +3,4 @@
 
 ## todo
 
-1. [ ] `original_estimate`と`status`も差分の対象とする。
+1. [x] `original_estimate`と`status`も差分の対象とする。
