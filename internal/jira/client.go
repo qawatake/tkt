@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Code-Hex/dd"
 	jiralib "github.com/andygrunwald/go-jira"
 	"github.com/ankitpokhrel/jira-cli/pkg/jira"
 	"github.com/k1LoW/errors"
@@ -237,17 +238,185 @@ func (c *Client) validateProject() error {
 
 // UpdateIssue はJIRAチケットを更新します
 func (c *Client) UpdateIssue(ticket ticket.Ticket) error {
-	err := c.jiraCLIClient.Edit(ticket.Key, &jira.EditRequest{
-		IssueType:      ticket.Type,
-		Summary:        ticket.Title,
-		ParentIssueKey: ticket.ParentKey,
-		Body:           md.ToJiraMD(ticket.Body),
-	})
+	// 更新用のフィールドを構築
+	fields := make(map[string]interface{})
+
+	// 基本フィールド
+	if ticket.Title != "" {
+		fields["summary"] = ticket.Title
+	}
+	if ticket.Body != "" {
+		fields["description"] = md.ToJiraMD(ticket.Body)
+	}
+	if ticket.ParentKey != "" {
+		fields["parent"] = map[string]string{"key": ticket.ParentKey}
+	}
+	if ticket.OriginalEstimate != 0 {
+		fields["timetracking"] = map[string]interface{}{
+			"originalEstimate": fmt.Sprintf("%.1fh", float64(ticket.OriginalEstimate)),
+		}
+	}
+
+	updateData := map[string]interface{}{
+		"fields": fields,
+	}
+
+	// JSON形式でリクエストボディを作成
+	jsonBody, err := json.Marshal(updateData)
 	if err != nil {
-		return fmt.Errorf("JIRAチケットの更新に失敗しました: %v", err)
+		return fmt.Errorf("リクエストボディの作成に失敗しました: %v", err)
+	}
+
+	// JIRA API v2を使用（JIRA記法をサポート）
+	req, err := http.NewRequest(http.MethodPut,
+		fmt.Sprintf("%s/rest/api/2/issue/%s", c.config.Server, ticket.Key),
+		bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return fmt.Errorf("HTTPリクエストの作成に失敗しました: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.SetBasicAuth(c.config.Login, getAPIToken())
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("HTTPリクエストの送信に失敗しました: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		errorMsg := string(bodyBytes)
+
+		// エラーの詳細をログに出力
+		verbose.Printf("JIRA更新エラー: %s\n", errorMsg)
+
+		return fmt.Errorf("JIRAチケットの更新に失敗しました (status: %d): %s", resp.StatusCode, errorMsg)
+	}
+
+	fmt.Println("❤️", ticket.Status)
+	// statusの更新（transition APIを使用）
+	if ticket.Status != "" {
+		err = c.updateIssueStatus(ticket.Key, ticket.Status)
+		if err != nil {
+			return fmt.Errorf("ステータスの更新に失敗しました: %v", err)
+		}
+		fmt.Println("ステータス更新成功:", ticket.Status)
 	}
 
 	return nil
+}
+
+// updateIssueStatus はJIRAチケットのステータスを更新します
+func (c *Client) updateIssueStatus(issueKey, targetStatus string) error {
+	// まず利用可能なトランジションを取得
+	transitions, err := c.getAvailableTransitions(issueKey)
+	if err != nil {
+		return fmt.Errorf("利用可能なトランジション取得に失敗しました: %v", err)
+	}
+
+	// 目標ステータスに対応するトランジションIDを見つける
+	var transitionID string
+	for _, transition := range transitions {
+		fmt.Println("Transition:", transition.Name, "->", transition.To.Name)
+		if transition.To.Name == targetStatus {
+			transitionID = transition.ID
+			break
+		}
+	}
+
+	if transitionID == "" {
+		// 目標ステータスが見つからない場合はスキップ（エラーにしない）
+		verbose.Printf("警告: ステータス '%s' への遷移が見つかりません (チケット: %s)\n", targetStatus, issueKey)
+		return nil
+	}
+
+	// トランジションを実行
+	transitionData := map[string]interface{}{
+		"transition": map[string]string{
+			"id": transitionID,
+		},
+	}
+
+	jsonBody, err := json.Marshal(transitionData)
+	if err != nil {
+		return fmt.Errorf("トランジションリクエストの作成に失敗しました: %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost,
+		fmt.Sprintf("%s/rest/api/2/issue/%s/transitions", c.config.Server, issueKey),
+		bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return fmt.Errorf("HTTPリクエストの作成に失敗しました: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.SetBasicAuth(c.config.Login, getAPIToken())
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("HTTPリクエストの送信に失敗しました: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("ステータス更新に失敗しました (status: %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	return nil
+}
+
+type Transition struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	To   struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	} `json:"to"`
+}
+
+// getAvailableTransitions は指定されたチケットで利用可能なトランジションを取得します
+func (c *Client) getAvailableTransitions(issueKey string) ([]Transition, error) {
+	req, err := http.NewRequest(http.MethodGet,
+		fmt.Sprintf("%s/rest/api/2/issue/%s/transitions", c.config.Server, issueKey),
+		nil)
+	if err != nil {
+		return nil, fmt.Errorf("HTTPリクエストの作成に失敗しました: %v", err)
+	}
+
+	req.SetBasicAuth(c.config.Login, getAPIToken())
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("HTTPリクエストの送信に失敗しました: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("トランジション取得に失敗しました (status: %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	b, err := io.ReadAll(resp.Body) // 応答ボディを読み取ることで、HTTP/2のストリームを閉じる
+	if err != nil {
+		return nil, fmt.Errorf("レスポンスの読み取りに失敗しました: %v", err)
+	}
+	fmt.Println(string(b))
+
+	var response struct {
+		Transitions []Transition `json:"transitions"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("レスポンスの解析に失敗しました: %v", err)
+	}
+	fmt.Println(dd.Dump(response))
+
+	return response.Transitions, nil
 }
 
 // CreateIssue は新しいJIRAチケットを作成します
