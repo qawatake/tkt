@@ -17,4 +17,4 @@
 3. [x] push前のfetchをチケット一つ一つfetchしていて無駄なので、idsでまとめて問い合わせるようにする。1ページに収まらなければconcで非同期化する。ただし、使うAPIはhttps://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-bulkfetch-postを使うこと。分割してconcで非同期化する。既存のSearchメソッドが参考になるはず。
 4. [x] 現状はkeyがwritable、タイトルがreadonlyになっている。keyはreadonlyにして、タイトルはwritableにする。つまり、keyは変更できないが、タイトルは変更できるようにする。
 5. [x] `push -f`で強制的にpushできるようにする。
-6. [ ] pushしたあとにreadonlyな属性を更新する。キャッシュだけじゃなくて手元のチケットも。(作成・更新の両方)
+7. [x] push時に更新可能な項目はすべてremoteに更新をかけるように修正する。例えば、`original_estimate`や`status`。

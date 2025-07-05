@@ -224,13 +224,26 @@ func FromFile(filePath string) (*Ticket, error) {
 
 // ToMarkdownWithoutReadonly はreadonly項目を除外したマークダウン形式を返します
 func (t *Ticket) ToMarkdownWithoutReadonly() string {
-	// readonly項目（key, status, assignee, reporter, created_at, updated_at）を除外したフロントマターを作成
+	// readonly項目（key, assignee, reporter, created_at, updated_at）を除外したフロントマターを作成
 	// titleはwritableなのでフロントマターに含める
-	frontMatter := markdown.CreateFrontMatter(map[string]interface{}{
+	// original_estimateとstatusも差分対象に含める
+	frontMatterData := map[string]interface{}{
 		"title":     t.Title,
 		"parentKey": t.ParentKey,
 		"type":      t.Type,
-	})
+	}
+
+	// original_estimateが設定されている場合は含める
+	if t.OriginalEstimate != 0 {
+		frontMatterData["original_estimate"] = t.OriginalEstimate
+	}
+
+	// statusが設定されている場合は含める
+	if t.Status != "" {
+		frontMatterData["status"] = t.Status
+	}
+
+	frontMatter := markdown.CreateFrontMatter(frontMatterData)
 
 	// フロントマターとbodyを結合
 	return frontMatter + t.Body
