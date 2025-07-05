@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Code-Hex/dd"
 	jiralib "github.com/andygrunwald/go-jira"
 	"github.com/ankitpokhrel/jira-cli/pkg/jira"
 	"github.com/k1LoW/errors"
@@ -295,14 +294,12 @@ func (c *Client) UpdateIssue(ticket ticket.Ticket) error {
 		return fmt.Errorf("JIRAチケットの更新に失敗しました (status: %d): %s", resp.StatusCode, errorMsg)
 	}
 
-	fmt.Println("❤️", ticket.Status)
 	// statusの更新（transition APIを使用）
 	if ticket.Status != "" {
 		err = c.updateIssueStatus(ticket.Key, ticket.Status)
 		if err != nil {
 			return fmt.Errorf("ステータスの更新に失敗しました: %v", err)
 		}
-		fmt.Println("ステータス更新成功:", ticket.Status)
 	}
 
 	return nil
@@ -318,8 +315,9 @@ func (c *Client) updateIssueStatus(issueKey, targetStatus string) error {
 
 	// 目標ステータスに対応するトランジションIDを見つける
 	var transitionID string
+	var availableStatuses []string
 	for _, transition := range transitions {
-		fmt.Println("Transition:", transition.Name, "->", transition.To.Name)
+		availableStatuses = append(availableStatuses, transition.To.Name)
 		if transition.To.Name == targetStatus {
 			transitionID = transition.ID
 			break
@@ -327,9 +325,9 @@ func (c *Client) updateIssueStatus(issueKey, targetStatus string) error {
 	}
 
 	if transitionID == "" {
-		// 目標ステータスが見つからない場合はスキップ（エラーにしない）
-		verbose.Printf("警告: ステータス '%s' への遷移が見つかりません (チケット: %s)\n", targetStatus, issueKey)
-		return nil
+		// 目標ステータスが見つからない場合はエラーとして返す
+		return fmt.Errorf("ステータス '%s' への遷移が見つかりません。利用可能なステータス: %s",
+			targetStatus, strings.Join(availableStatuses, ", "))
 	}
 
 	// トランジションを実行
@@ -401,12 +399,6 @@ func (c *Client) getAvailableTransitions(issueKey string) ([]Transition, error) 
 		return nil, fmt.Errorf("トランジション取得に失敗しました (status: %d): %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	b, err := io.ReadAll(resp.Body) // 応答ボディを読み取ることで、HTTP/2のストリームを閉じる
-	if err != nil {
-		return nil, fmt.Errorf("レスポンスの読み取りに失敗しました: %v", err)
-	}
-	fmt.Println(string(b))
-
 	var response struct {
 		Transitions []Transition `json:"transitions"`
 	}
@@ -414,7 +406,6 @@ func (c *Client) getAvailableTransitions(issueKey string) ([]Transition, error) 
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return nil, fmt.Errorf("レスポンスの解析に失敗しました: %v", err)
 	}
-	fmt.Println(dd.Dump(response))
 
 	return response.Transitions, nil
 }
