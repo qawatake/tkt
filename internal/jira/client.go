@@ -13,7 +13,6 @@ import (
 	"time"
 
 	jiralib "github.com/andygrunwald/go-jira"
-	"github.com/ankitpokhrel/jira-cli/pkg/jira"
 	"github.com/k1LoW/errors"
 	"github.com/qawatake/tkt/internal/adf"
 	"github.com/qawatake/tkt/internal/config"
@@ -26,9 +25,8 @@ import (
 
 // Client はJIRA APIクライアントのラッパーです
 type Client struct {
-	jiraClient    *jiralib.Client
-	jiraCLIClient *jira.Client
-	config        *config.Config
+	jiraClient *jiralib.Client
+	config     *config.Config
 }
 
 // NewClient は新しいJIRA APIクライアントを作成します
@@ -71,21 +69,10 @@ func NewClient(cfg *config.Config) (*Client, error) {
 		return nil, fmt.Errorf("JIRAクライアントの作成に失敗しました: %v", err)
 	}
 
-	jiraCLIClient := jira.NewClient(newJIRACLIConfig(cfg))
-
 	return &Client{
-		jiraClient:    jiraClient,
-		jiraCLIClient: jiraCLIClient,
-		config:        cfg,
+		jiraClient: jiraClient,
+		config:     cfg,
 	}, nil
-}
-
-func newJIRACLIConfig(cfg *config.Config) jira.Config {
-	return jira.Config{
-		Server:   cfg.Server,
-		Login:    cfg.Login,
-		APIToken: getAPIToken(),
-	}
 }
 
 // getAPIToken は環境変数からAPIトークンを取得します
