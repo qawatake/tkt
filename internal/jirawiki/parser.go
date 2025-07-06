@@ -1,3 +1,15 @@
+// This file is based on https://github.com/ankitpokhrel/jira-cli/blob/adab79ff71c7191d467818e50a84874102f4c78f/pkg/md/jirawiki/parser.go
+//
+// Modified to fix Japanese character encoding issues (mojibake) that occurred
+// when processing UTF-8 multibyte characters. Key changes:
+// - Fixed handleReferenceLink to use rune-based string slicing instead of byte-based
+// - Fixed secondPass function to use rune-based character processing
+// - Added UTF-8 safe functions (isTextEffectRune, isListTagRune)
+// - Enhanced getTagType with proper boundary checks for multibyte characters
+// - Added comprehensive escape character processing to prevent double encoding
+//
+// The original jirawiki.Parse() function caused Japanese text like "ふがふが"
+// to become garbled as "ãµããµã" due to improper handling of UTF-8 byte sequences.
 package jirawiki
 
 import (

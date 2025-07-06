@@ -1,3 +1,16 @@
+// This file is based on https://github.com/ankitpokhrel/jira-cli/blob/adab79ff71c7191d467818e50a84874102f4c78f/pkg/md/jirawiki/parser_test.go
+//
+// Modified to add comprehensive test cases for Japanese character encoding issues.
+// Added TestJapaneseCharacterEncoding to prevent regression of mojibake bugs
+// that occurred when processing UTF-8 multibyte characters in wiki markup.
+//
+// The added tests ensure that:
+// - Escaped brackets with Japanese text: \[これはいけるのでしょうか\] ふがふが
+// - Escaped parentheses with Japanese text: \(これは\) いけるのか？
+// - Plain Japanese text: こんにちは世界
+// - Mixed Japanese and English: \[Japanese\] テスト
+//
+// All render correctly without character corruption (e.g., "ふがふが" should not become "ãµããµã").
 package jirawiki
 
 import (
