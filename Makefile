@@ -14,5 +14,9 @@ fmt:
 install:
 	go install ./cmd/tkt
 
+maplang:
+	@echo "Generating language mapping..."
+	@go run ./internal/scripts/maplang adf > internal/adf/lang_map.go
+
 prestop: mod fmt install
 

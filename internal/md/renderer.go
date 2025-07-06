@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"io"
 
+	"github.com/qawatake/tkt/internal/adf"
 	bf "github.com/russross/blackfriday/v2"
 )
 
@@ -164,9 +165,11 @@ func (r *Renderer) RenderNode(w io.Writer, node *bf.Node, entering bool) bf.Walk
 				case "warning":
 					r.out(w, warningTag)
 				default:
+					// Normalize the language before using it
+					normalizedLang := adf.NormalizeLanguage(language)
 					r.out(w, []byte(codeTag))
 					r.out(w, []byte(":"))
-					r.out(w, node.Info)
+					r.out(w, []byte(normalizedLang))
 				}
 				r.out(w, []byte("}"))
 				r.cr(w)
@@ -185,9 +188,11 @@ func (r *Renderer) RenderNode(w io.Writer, node *bf.Node, entering bool) bf.Walk
 					r.out(w, []byte(codeTag))
 				}
 			} else {
+				// Normalize the language before using it
+				normalizedLang := adf.NormalizeLanguage(string(node.Info))
 				r.out(w, []byte(codeTag))
 				r.out(w, []byte(":"))
-				r.out(w, node.Info)
+				r.out(w, []byte(normalizedLang))
 				r.out(w, []byte("}"))
 				r.cr(w)
 				w.Write(node.Literal)
