@@ -23,10 +23,22 @@ import (
 	"github.com/sourcegraph/conc/pool"
 )
 
+// Sprint はJIRAスプリントの情報を表します
+type Sprint struct {
+	ID           int    `json:"id"`
+	Name         string `json:"name"`
+	State        string `json:"state"`
+	BoardID      int    `json:"originBoardId"`
+	StartDate    string `json:"startDate"`
+	EndDate      string `json:"endDate"`
+	CompleteDate string `json:"completeDate"`
+}
+
 // Client はJIRA APIクライアントのラッパーです
 type Client struct {
-	jiraClient *jiralib.Client
-	config     *config.Config
+	jiraClient    *jiralib.Client
+	config        *config.Config
+	sprintFieldID string // 動的に発見されたスプリントフィールドID
 }
 
 // NewClient は新しいJIRA APIクライアントを作成します
@@ -69,10 +81,19 @@ func NewClient(cfg *config.Config) (*Client, error) {
 		return nil, fmt.Errorf("JIRAクライアントの作成に失敗しました: %v", err)
 	}
 
-	return &Client{
+	client := &Client{
 		jiraClient: jiraClient,
 		config:     cfg,
-	}, nil
+	}
+
+	// スプリントフィールドを動的に発見
+	if err := client.discoverSprintField(); err != nil {
+		verbose.Printf("スプリントフィールドの発見に失敗しました: %v\n", err)
+		verbose.Printf("スプリント機能は無効になります\n")
+		// エラーでもクライアント作成は続行（スプリント機能が使えないだけ）
+	}
+
+	return client, nil
 }
 
 // getAPIToken は環境変数からAPIトークンを取得します
@@ -94,7 +115,7 @@ func (c *Client) FetchIssue(key string) (*ticket.Ticket, error) {
 	if err != nil {
 		return nil, err
 	}
-	return convert(issue, c.config)
+	return c.convertWithSprint(issue)
 }
 
 // FetchIssues はJQLに基づいてJIRAチケットを取得します
@@ -163,7 +184,7 @@ func (c *Client) FetchIssues() (_ []*ticket.Ticket, err error) {
 
 	tickets := make([]*ticket.Ticket, 0, len(issues))
 	for _, issue := range issues {
-		ticket, err := convert(issue, c.config)
+		ticket, err := c.convertWithSprint(issue)
 		if err != nil {
 			return nil, err
 		}
@@ -197,6 +218,8 @@ func convert(issue *Issue, cfg *config.Config) (*ticket.Ticket, error) {
 		tkt.OriginalEstimate = ticket.NewHour(time.Duration(*issue.Fields.TimeOriginalEstimate) * time.Second)
 	}
 
+	// スプリント情報は呼び出し元で設定される
+
 	// Parse timestamps
 	createdAt, err := issue.Fields.CreatedAt()
 	if err != nil {
@@ -209,6 +232,100 @@ func convert(issue *Issue, cfg *config.Config) (*ticket.Ticket, error) {
 	tkt.CreatedAt = createdAt
 	tkt.UpdatedAt = updatedAt
 	return tkt, nil
+}
+
+// convertWithSprint はIssueをTicketに変換し、スプリント情報も設定します
+func (c *Client) convertWithSprint(issue *Issue) (*ticket.Ticket, error) {
+	tkt, err := convert(issue, c.config)
+	if err != nil {
+		return nil, err
+	}
+
+	// スプリント情報を動的に設定
+	if c.sprintFieldID != "" {
+		verbose.Printf("スプリントフィールドID: %s でデータ抽出を試行中...\n", c.sprintFieldID)
+		sprintName := c.extractSprintNameFromIssue(issue)
+		if sprintName != "" {
+			verbose.Printf("スプリント名を発見: %s\n", sprintName)
+		} else {
+			verbose.Printf("スプリント名が見つかりませんでした\n")
+		}
+		tkt.SprintName = sprintName
+	} else {
+		verbose.Printf("スプリントフィールドIDが設定されていません\n")
+	}
+
+	return tkt, nil
+}
+
+// extractSprintNameFromIssue は動的にスプリント名を抽出します
+func (c *Client) extractSprintNameFromIssue(issue *Issue) string {
+	if c.sprintFieldID == "" {
+		verbose.Printf("スプリントフィールドIDが空です\n")
+		return ""
+	}
+
+	// CustomFieldsからスプリントフィールドを取得
+	verbose.Printf("利用可能なカスタムフィールド数: %d\n", len(issue.Fields.CustomFields))
+
+	sprintFieldValue, exists := issue.Fields.CustomFields[c.sprintFieldID]
+	if !exists {
+		verbose.Printf("スプリントフィールド %s が見つかりません\n", c.sprintFieldID)
+		// デバッグ: 利用可能なカスタムフィールドを表示
+		for key := range issue.Fields.CustomFields {
+			if strings.HasPrefix(key, "customfield_") {
+				verbose.Printf("  利用可能なカスタムフィールド: %s\n", key)
+			}
+		}
+		return ""
+	}
+
+	verbose.Printf("スプリントフィールド値の型: %T, 値: %v\n", sprintFieldValue, sprintFieldValue)
+
+	// nilの場合
+	if sprintFieldValue == nil {
+		verbose.Printf("スプリントフィールドがnullです\n")
+		return ""
+	}
+
+	sprintField, ok := sprintFieldValue.([]interface{})
+	if !ok {
+		verbose.Printf("スプリントフィールドが配列ではありません\n")
+		return ""
+	}
+
+	if len(sprintField) == 0 {
+		verbose.Printf("スプリントフィールドが空です\n")
+		return ""
+	}
+
+	verbose.Printf("スプリント数: %d\n", len(sprintField))
+
+	// 最後のスプリント（現在のスプリント）を取得
+	lastSprint, ok := sprintField[len(sprintField)-1].(map[string]interface{})
+	if !ok {
+		verbose.Printf("最後のスプリントがマップではありません。型: %T, 値: %v\n", sprintField[len(sprintField)-1], sprintField[len(sprintField)-1])
+		return ""
+	}
+
+	verbose.Printf("最後のスプリント内容: %+v\n", lastSprint)
+
+	if name, ok := lastSprint["name"].(string); ok {
+		verbose.Printf("スプリント名抽出成功: %s\n", name)
+		return name
+	}
+
+	verbose.Printf("nameフィールドが見つからないか型が不正です。利用可能なキー: %v\n", getKeys(lastSprint))
+	return ""
+}
+
+// getKeys はマップのキー一覧を取得します
+func getKeys(m map[string]interface{}) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 // validateProject はプロジェクトが存在するか確認します
@@ -243,6 +360,12 @@ func (c *Client) UpdateIssue(ticket ticket.Ticket) error {
 		}
 	}
 
+	// スプリントフィールドの更新
+	if err := c.addSprintFieldToUpdate(fields, ticket); err != nil {
+		verbose.Printf("スプリントフィールドの設定に失敗しました: %v\n", err)
+		// エラーでも他のフィールドの更新は続行
+	}
+
 	updateData := map[string]interface{}{
 		"fields": fields,
 	}
@@ -252,7 +375,6 @@ func (c *Client) UpdateIssue(ticket ticket.Ticket) error {
 	if err != nil {
 		return fmt.Errorf("リクエストボディの作成に失敗しました: %v", err)
 	}
-
 	// JIRA API v2を使用（JIRA記法をサポート）
 	req, err := http.NewRequest(http.MethodPut,
 		fmt.Sprintf("%s/rest/api/2/issue/%s", c.config.Server, ticket.Key),
@@ -432,28 +554,39 @@ func (c *Client) CreateIssue(ticket *ticket.Ticket) (*ticket.Ticket, error) {
 	// Markdown本文をJIRA記法に変換
 	jiraDescription := md.ToJiraMD(ticket.Body)
 
-	// チケット作成用のフィールドを準備
-	fields := jiralib.IssueFields{
-		Project: jiralib.Project{
-			Key: c.config.Project.Key,
+	// チケット作成用のフィールドを準備（カスタムフィールド対応のためmap形式）
+	fields := map[string]interface{}{
+		"project": map[string]string{
+			"key": c.config.Project.Key,
 		},
-		Type: jiralib.IssueType{
-			ID: typeID,
+		"issuetype": map[string]string{
+			"id": typeID,
 		},
-		Summary:     ticket.Title,
-		Description: jiraDescription,
+		"summary":     ticket.Title,
+		"description": jiraDescription,
 	}
 
 	// 親チケットがある場合は設定
 	if ticket.ParentKey != "" {
-		fields.Parent = &jiralib.Parent{
-			Key: ticket.ParentKey,
+		fields["parent"] = map[string]string{
+			"key": ticket.ParentKey,
+		}
+	}
+
+	// スプリントが指定されている場合はカスタムフィールドに設定
+	if ticket.SprintName != "" && c.sprintFieldID != "" && c.config.Board.ID != 0 {
+		sprintID, err := c.findSprintIDByName(ticket.SprintName)
+		if err != nil {
+			verbose.Printf("スプリントIDの解決に失敗しました（作成時）: %v\n", err)
+		} else if sprintID != 0 {
+			verbose.Printf("作成時にスプリントフィールド %s を設定: %d\n", c.sprintFieldID, sprintID)
+			fields[c.sprintFieldID] = sprintID
 		}
 	}
 
 	// チケットを作成
-	issue := jiralib.Issue{
-		Fields: &fields,
+	issue := map[string]interface{}{
+		"fields": fields,
 	}
 
 	// デバッグ用：リクエストボディをログ出力
@@ -461,24 +594,58 @@ func (c *Client) CreateIssue(ticket *ticket.Ticket) (*ticket.Ticket, error) {
 		verbose.Printf("JIRA Issue作成リクエスト:\n%s\n", string(requestBody))
 	}
 
-	newIssue, response, err := c.jiraClient.Issue.Create(&issue)
+	// JSONボディを作成
+	jsonBody, err := json.Marshal(issue)
 	if err != nil {
-		// HTTP レスポンスボディを読み取って詳細なエラー情報を取得
-		var errorDetails string
-		if response != nil && response.Body != nil {
-			bodyBytes, readErr := io.ReadAll(response.Body)
-			if readErr == nil {
-				errorDetails = string(bodyBytes)
-			}
-		}
-		if errorDetails != "" {
-			return nil, fmt.Errorf("JIRAチケットの作成に失敗しました: %v\nレスポンス詳細: %s", err, errorDetails)
-		}
-		return nil, fmt.Errorf("JIRAチケットの作成に失敗しました: %v", err)
+		return nil, fmt.Errorf("リクエストボディの作成に失敗しました: %v", err)
+	}
+
+	// 直接HTTPリクエストを送信（カスタムフィールド対応のため）
+	req, err := http.NewRequest(http.MethodPost,
+		fmt.Sprintf("%s/rest/api/2/issue", c.config.Server),
+		bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return nil, fmt.Errorf("HTTPリクエストの作成に失敗しました: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.SetBasicAuth(c.config.Login, getAPIToken())
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("HTTPリクエストの送信に失敗しました: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// レスポンスボディを読み取り
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("レスポンスの読み取りに失敗しました: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("JIRAチケットの作成に失敗しました (status: %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	// レスポンスを解析して作成されたチケットのキーを取得
+	var createResponse struct {
+		Key string `json:"key"`
+	}
+	if err := json.Unmarshal(bodyBytes, &createResponse); err != nil {
+		return nil, fmt.Errorf("作成レスポンスの解析に失敗しました: %v", err)
 	}
 
 	// 作成されたチケットをfetchして正しいフォーマットで返す
-	return c.FetchIssue(newIssue.Key)
+	createdTicket, err := c.FetchIssue(createResponse.Key)
+	if err != nil {
+		return nil, err
+	}
+
+	// スプリントは作成時にカスタムフィールドで直接設定済み
+	verbose.Printf("チケット作成完了: %s (スプリント設定済み)\n", createResponse.Key)
+
+	return createdTicket, nil
 }
 
 type SearchResult struct {
@@ -519,8 +686,47 @@ type IssueFields struct {
 		EmailAddress string `json:"emailAddress"`
 		Name         string `json:"displayName"`
 	} `json:"reporter"`
-	Created string `json:"created"`
-	Updated string `json:"updated"`
+	Created      string                 `json:"created"`
+	Updated      string                 `json:"updated"`
+	CustomFields map[string]interface{} `json:"-"` // カスタムフィールドを格納するためのマップ
+}
+
+// UnmarshalJSON はIssueFieldsの独自JSON解析を実装します
+func (f *IssueFields) UnmarshalJSON(data []byte) error {
+	// 既知のフィールドを定義した一時的な構造体
+	type Alias IssueFields
+	aux := &struct {
+		*Alias
+	}{
+		Alias: (*Alias)(f),
+	}
+
+	// まず通常の構造体としてアンマーシャル
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	// 全フィールドをマップとしてアンマーシャル
+	var allFields map[string]interface{}
+	if err := json.Unmarshal(data, &allFields); err != nil {
+		return err
+	}
+
+	// 既知のフィールドを除外してカスタムフィールドのみ抽出
+	knownFields := map[string]bool{
+		"summary": true, "issuetype": true, "parent": true, "status": true,
+		"timeoriginalestimate": true, "description": true, "assignee": true,
+		"reporter": true, "created": true, "updated": true,
+	}
+
+	f.CustomFields = make(map[string]interface{})
+	for key, value := range allFields {
+		if !knownFields[key] {
+			f.CustomFields[key] = value
+		}
+	}
+
+	return nil
 }
 
 // 2025-06-01T19:06:22.513+0900
@@ -555,22 +761,28 @@ func (c *Client) Search(ctx context.Context, jql JQL, startAt, maxResults int) (
 		MaxResults int      `json:"maxResults"`
 	}
 
+	fields := []string{
+		"issuetype",
+		"timeoriginalestimate",
+		"aggregatetimeoriginalestimate",
+		"summary",
+		"created",
+		"status",
+		"updated",
+		"assignee",
+		"description",
+		"reporter",
+		"parent",
+	}
+
+	// スプリントフィールドが発見されている場合は追加
+	if c.sprintFieldID != "" {
+		fields = append(fields, c.sprintFieldID)
+	}
+
 	reqBody := Request{
-		JQL: jql,
-		Fields: []string{
-			"issuetype",
-			"timeoriginalestimate",
-			"aggregatetimeoriginalestimate",
-			"summary",
-			"created",
-			"status",
-			"updated",
-			"assignee",
-			"issuetype",
-			"description",
-			"reporter",
-			"parent",
-		},
+		JQL:        jql,
+		Fields:     fields,
 		StartAt:    startAt,
 		MaxResults: maxResults,
 	}
@@ -623,6 +835,11 @@ func (c *Client) Get(ctx context.Context, key string) (_ *Issue, err error) {
 		"description",
 		"reporter",
 		"parent",
+	}
+
+	// スプリントフィールドが発見されている場合は追加
+	if c.sprintFieldID != "" {
+		fields = append(fields, c.sprintFieldID)
 	}
 
 	url := fmt.Sprintf("%s/rest/api/3/issue/%s?fields=%s", c.config.Server, key, strings.Join(fields, ","))
@@ -708,7 +925,7 @@ func (c *Client) BulkFetchIssues(keys []string) (_ []*ticket.Ticket, err error) 
 	// IssueからTicketに変換
 	tickets := make([]*ticket.Ticket, 0, len(allIssues))
 	for _, issue := range allIssues {
-		ticket, err := convert(issue, c.config)
+		ticket, err := c.convertWithSprint(issue)
 		if err != nil {
 			return nil, err
 		}
@@ -737,22 +954,29 @@ func (c *Client) bulkFetchBatch(ctx context.Context, keys []string) (_ []*Issue,
 		} `json:"errors"`
 	}
 
+	fields := []string{
+		"issuetype",
+		"timeoriginalestimate",
+		"aggregatetimeoriginalestimate",
+		"summary",
+		"created",
+		"status",
+		"updated",
+		"assignee",
+		"description",
+		"reporter",
+		"parent",
+	}
+
+	// スプリントフィールドが発見されている場合は追加
+	if c.sprintFieldID != "" {
+		fields = append(fields, c.sprintFieldID)
+	}
+
 	reqBody := BulkFetchRequest{
 		IssueIdsOrKeys: keys,
-		Fields: []string{
-			"issuetype",
-			"timeoriginalestimate",
-			"aggregatetimeoriginalestimate",
-			"summary",
-			"created",
-			"status",
-			"updated",
-			"assignee",
-			"description",
-			"reporter",
-			"parent",
-		},
-		FieldsByKeys: false,
+		Fields:         fields,
+		FieldsByKeys:   false,
 	}
 
 	jsonBody, err := json.Marshal(reqBody)
@@ -795,4 +1019,230 @@ func (c *Client) bulkFetchBatch(ctx context.Context, keys []string) (_ []*Issue,
 	}
 
 	return result.Issues, nil
+}
+
+// GetBoardSprints は指定されたボードの全スプリントを取得します
+func (c *Client) GetBoardSprints(boardID int) ([]Sprint, error) {
+	url := fmt.Sprintf("%s/rest/agile/1.0/board/%d/sprint", c.config.Server, boardID)
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("HTTPリクエストの作成に失敗しました: %v", err)
+	}
+	req.SetBasicAuth(c.config.Login, getAPIToken())
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("HTTPリクエストの送信に失敗しました: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("スプリント取得に失敗しました (status: %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var response struct {
+		Values []Sprint `json:"values"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("レスポンスの解析に失敗しました: %v", err)
+	}
+
+	return response.Values, nil
+}
+
+// GetActiveSprints は指定されたボードのアクティブなスプリントを取得します
+func (c *Client) GetActiveSprints(boardID int) ([]Sprint, error) {
+	url := fmt.Sprintf("%s/rest/agile/1.0/board/%d/sprint?state=active", c.config.Server, boardID)
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("HTTPリクエストの作成に失敗しました: %v", err)
+	}
+	req.SetBasicAuth(c.config.Login, getAPIToken())
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("HTTPリクエストの送信に失敗しました: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("アクティブスプリント取得に失敗しました (status: %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var response struct {
+		Values []Sprint `json:"values"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("レスポンスの解析に失敗しました: %v", err)
+	}
+
+	return response.Values, nil
+}
+
+// AddIssueToSprint は指定されたチケットをスプリントに追加します
+func (c *Client) AddIssueToSprint(issueKey string, sprintID int) error {
+	url := fmt.Sprintf("%s/rest/agile/1.0/sprint/%d/issue", c.config.Server, sprintID)
+
+	reqBody := struct {
+		Issues []string `json:"issues"`
+	}{
+		Issues: []string{issueKey},
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return fmt.Errorf("リクエストボディの作成に失敗しました: %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return fmt.Errorf("HTTPリクエストの作成に失敗しました: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.SetBasicAuth(c.config.Login, getAPIToken())
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("HTTPリクエストの送信に失敗しました: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("スプリントへのチケット追加に失敗しました (status: %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	return nil
+}
+
+// findSprintIDByName はスプリント名からスプリントIDを解決します
+func (c *Client) findSprintIDByName(sprintName string) (int, error) {
+	// 設定からボードIDを取得
+	if c.config.Board.ID == 0 {
+		return 0, fmt.Errorf("ボード設定が見つかりません")
+	}
+
+	sprints, err := c.GetBoardSprints(c.config.Board.ID)
+	if err != nil {
+		return 0, fmt.Errorf("スプリント一覧の取得に失敗しました: %v", err)
+	}
+
+	for _, sprint := range sprints {
+		if sprint.Name == sprintName {
+			return sprint.ID, nil
+		}
+	}
+
+	return 0, fmt.Errorf("スプリント '%s' が見つかりません", sprintName)
+}
+
+// addSprintFieldToUpdate はスプリントフィールドを更新フィールドに追加します
+func (c *Client) addSprintFieldToUpdate(fields map[string]interface{}, ticket ticket.Ticket) error {
+	// スプリント名が指定されていない場合は何もしない
+	if ticket.SprintName == "" {
+		verbose.Printf("スプリント名が指定されていないため、スプリント更新をスキップします\n")
+		return nil
+	}
+
+	// スプリントフィールドIDが発見されていない場合は何もしない
+	if c.sprintFieldID == "" {
+		verbose.Printf("スプリントフィールドIDが見つからないため、スプリント更新をスキップします\n")
+		return nil
+	}
+
+	// ボード設定がない場合は何もしない
+	if c.config.Board.ID == 0 {
+		verbose.Printf("ボード設定が見つからないため、スプリント更新をスキップします\n")
+		return nil
+	}
+
+	// 目標スプリントのIDを解決
+	targetSprintID, err := c.findSprintIDByName(ticket.SprintName)
+	if err != nil {
+		return fmt.Errorf("目標スプリントIDの解決に失敗しました: %v", err)
+	}
+
+	verbose.Printf("スプリントフィールド %s をスプリント '%s' (ID: %d) に設定します\n", c.sprintFieldID, ticket.SprintName, targetSprintID)
+
+	// スプリントフィールドに直接スプリントIDを設定
+	fields[c.sprintFieldID] = targetSprintID
+
+	return nil
+}
+
+// discoverSprintField はJIRA APIからスプリントフィールドを動的に発見します
+func (c *Client) discoverSprintField() error {
+	req, err := http.NewRequest(http.MethodGet, c.config.Server+"/rest/api/3/field", nil)
+	if err != nil {
+		return fmt.Errorf("HTTPリクエストの作成に失敗しました: %v", err)
+	}
+	req.SetBasicAuth(c.config.Login, getAPIToken())
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("HTTPリクエストの送信に失敗しました: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("フィールド情報の取得に失敗しました (status: %d)", resp.StatusCode)
+	}
+
+	var fields []struct {
+		ID     string `json:"id"`
+		Name   string `json:"name"`
+		Custom bool   `json:"custom"`
+		Schema struct {
+			Custom   string `json:"custom"`
+			Type     string `json:"type"`
+			Items    string `json:"items"`
+			CustomID int    `json:"customId"`
+		} `json:"schema"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&fields); err != nil {
+		return fmt.Errorf("レスポンスの解析に失敗しました: %v", err)
+	}
+
+	// スプリントフィールドを検索
+	for _, field := range fields {
+		isSprintField := false
+
+		// 複数の条件でスプリントフィールドを特定
+		if field.Custom && field.Schema.Custom == "com.pyxis.greenhopper.jira:gh-sprint" {
+			isSprintField = true
+		} else if field.Custom && strings.ToLower(field.Name) == "sprint" {
+			isSprintField = true
+		} else if field.Custom && field.Schema.Type == "array" && field.Schema.Items == "json" {
+			// スプリントフィールドの一般的な特徴: カスタム + 配列 + JSON項目
+			if strings.Contains(strings.ToLower(field.Name), "sprint") {
+				isSprintField = true
+			}
+		}
+
+		if isSprintField {
+			c.sprintFieldID = field.ID
+			verbose.Printf("スプリントフィールドを発見しました: %s (%s) - Schema: %+v\n", field.ID, field.Name, field.Schema)
+			return nil
+		}
+	}
+
+	verbose.Printf("利用可能なカスタムフィールド:\n")
+	for _, field := range fields {
+		if field.Custom {
+			verbose.Printf("  %s: %s (Schema: %+v)\n", field.ID, field.Name, field.Schema)
+		}
+	}
+
+	return fmt.Errorf("スプリントフィールドが見つかりませんでした")
 }
