@@ -311,7 +311,7 @@ var languageMap = map[string]string{
 	"xpath":                    "xpath",
 	"xquery":                   "xquery",
 	"xsd":                      "xml",
-	"yaml":                     "Yaml",
+	"yaml":                     "yaml",
 	"yang":                     "yang",
 	"yml":                      "yaml",
 	"zig":                      "zig",
