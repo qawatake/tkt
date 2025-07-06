@@ -150,8 +150,57 @@ func CompareDirs(localDir, cacheDir string) ([]DiffResult, error) {
 
 // CommonMarkとして正規化しないと、パース結果が同じなのに差分があると検知されてしまいノイジーなので。
 func format(body string) string {
-	jmd := md.ToJiraMD(body) // JIRAのMarkdown形式に変換
-	return md.FromJiraMD(jmd)
+	// front matterとbodyを分離
+	frontMatter, content := separateFrontMatter(body)
+
+	// bodyのみにJIRAのMarkdown変換を適用
+	if content != "" {
+		jmd := md.ToJiraMD(content)
+		content = md.FromJiraMD(jmd)
+	}
+
+	// front matterとbodyを結合
+	return frontMatter + content
+}
+
+// separateFrontMatter はMarkdownからfront matterとbodyを分離します
+func separateFrontMatter(markdown string) (frontMatter, body string) {
+	lines := strings.Split(markdown, "\n")
+
+	// front matterの開始を確認
+	if len(lines) < 3 || lines[0] != "---" {
+		// front matterがない場合はそのまま返す
+		return "", markdown
+	}
+
+	// front matterの終了位置を探す
+	endIndex := -1
+	for i := 1; i < len(lines); i++ {
+		if lines[i] == "---" {
+			endIndex = i
+			break
+		}
+	}
+
+	if endIndex == -1 {
+		// front matterの終了が見つからない場合はそのまま返す
+		return "", markdown
+	}
+
+	// front matter部分（区切り文字含む）
+	frontMatterLines := lines[:endIndex+1]
+	frontMatter = strings.Join(frontMatterLines, "\n")
+	if len(frontMatterLines) > 0 {
+		frontMatter += "\n"
+	}
+
+	// body部分
+	if endIndex+1 < len(lines) {
+		bodyLines := lines[endIndex+1:]
+		body = strings.Join(bodyLines, "\n")
+	}
+
+	return frontMatter, body
 }
 
 // chezmoi diffを参考に。

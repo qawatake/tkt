@@ -2,7 +2,7 @@
 package md
 
 import (
-	"github.com/ankitpokhrel/jira-cli/pkg/md/jirawiki"
+	"github.com/qawatake/tkt/internal/jirawiki"
 	bf "github.com/russross/blackfriday/v2"
 )
 
