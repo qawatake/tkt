@@ -360,6 +360,12 @@ func (c *Client) UpdateIssue(ticket ticket.Ticket) error {
 		}
 	}
 
+	// スプリントフィールドの更新
+	if err := c.addSprintFieldToUpdate(fields, ticket); err != nil {
+		verbose.Printf("スプリントフィールドの設定に失敗しました: %v\n", err)
+		// エラーでも他のフィールドの更新は続行
+	}
+
 	updateData := map[string]interface{}{
 		"fields": fields,
 	}
@@ -369,7 +375,6 @@ func (c *Client) UpdateIssue(ticket ticket.Ticket) error {
 	if err != nil {
 		return fmt.Errorf("リクエストボディの作成に失敗しました: %v", err)
 	}
-
 	// JIRA API v2を使用（JIRA記法をサポート）
 	req, err := http.NewRequest(http.MethodPut,
 		fmt.Sprintf("%s/rest/api/2/issue/%s", c.config.Server, ticket.Key),
@@ -404,11 +409,6 @@ func (c *Client) UpdateIssue(ticket ticket.Ticket) error {
 		if err != nil {
 			return fmt.Errorf("ステータスの更新に失敗しました: %v", err)
 		}
-	}
-
-	// スプリントの更新
-	if err := c.updateIssueSprint(ticket); err != nil {
-		return fmt.Errorf("スプリントの更新に失敗しました: %v", err)
 	}
 
 	return nil
@@ -1117,11 +1117,17 @@ func (c *Client) findSprintIDByName(sprintName string) (int, error) {
 	return 0, fmt.Errorf("スプリント '%s' が見つかりません", sprintName)
 }
 
-// updateIssueSprint はチケットのスプリント情報を更新します
-func (c *Client) updateIssueSprint(ticket ticket.Ticket) error {
+// addSprintFieldToUpdate はスプリントフィールドを更新フィールドに追加します
+func (c *Client) addSprintFieldToUpdate(fields map[string]interface{}, ticket ticket.Ticket) error {
 	// スプリント名が指定されていない場合は何もしない
 	if ticket.SprintName == "" {
 		verbose.Printf("スプリント名が指定されていないため、スプリント更新をスキップします\n")
+		return nil
+	}
+
+	// スプリントフィールドIDが発見されていない場合は何もしない
+	if c.sprintFieldID == "" {
+		verbose.Printf("スプリントフィールドIDが見つからないため、スプリント更新をスキップします\n")
 		return nil
 	}
 
@@ -1131,35 +1137,17 @@ func (c *Client) updateIssueSprint(ticket ticket.Ticket) error {
 		return nil
 	}
 
-	// 現在のチケットのスプリント情報を取得
-	currentIssue, err := c.Get(context.Background(), ticket.Key)
-	if err != nil {
-		return fmt.Errorf("現在のチケット情報の取得に失敗しました: %v", err)
-	}
-
-	currentSprintName := c.extractSprintNameFromIssue(currentIssue)
-	verbose.Printf("現在のスプリント: '%s', 目標スプリント: '%s'\n", currentSprintName, ticket.SprintName)
-
-	// スプリント名が同じ場合は何もしない
-	if currentSprintName == ticket.SprintName {
-		verbose.Printf("スプリントに変更がないため、スプリント更新をスキップします\n")
-		return nil
-	}
-
 	// 目標スプリントのIDを解決
 	targetSprintID, err := c.findSprintIDByName(ticket.SprintName)
 	if err != nil {
 		return fmt.Errorf("目標スプリントIDの解決に失敗しました: %v", err)
 	}
 
-	verbose.Printf("チケット %s をスプリント '%s' (ID: %d) に移動します\n", ticket.Key, ticket.SprintName, targetSprintID)
+	verbose.Printf("スプリントフィールド %s をスプリント '%s' (ID: %d) に設定します\n", c.sprintFieldID, ticket.SprintName, targetSprintID)
 
-	// チケットをスプリントに追加
-	if err := c.AddIssueToSprint(ticket.Key, targetSprintID); err != nil {
-		return fmt.Errorf("チケットのスプリント追加に失敗しました: %v", err)
-	}
+	// スプリントフィールドに直接スプリントIDを設定
+	fields[c.sprintFieldID] = targetSprintID
 
-	verbose.Printf("チケット %s のスプリント更新が完了しました\n", ticket.Key)
 	return nil
 }
 
