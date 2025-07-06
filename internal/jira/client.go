@@ -554,28 +554,39 @@ func (c *Client) CreateIssue(ticket *ticket.Ticket) (*ticket.Ticket, error) {
 	// Markdown本文をJIRA記法に変換
 	jiraDescription := md.ToJiraMD(ticket.Body)
 
-	// チケット作成用のフィールドを準備
-	fields := jiralib.IssueFields{
-		Project: jiralib.Project{
-			Key: c.config.Project.Key,
+	// チケット作成用のフィールドを準備（カスタムフィールド対応のためmap形式）
+	fields := map[string]interface{}{
+		"project": map[string]string{
+			"key": c.config.Project.Key,
 		},
-		Type: jiralib.IssueType{
-			ID: typeID,
+		"issuetype": map[string]string{
+			"id": typeID,
 		},
-		Summary:     ticket.Title,
-		Description: jiraDescription,
+		"summary":     ticket.Title,
+		"description": jiraDescription,
 	}
 
 	// 親チケットがある場合は設定
 	if ticket.ParentKey != "" {
-		fields.Parent = &jiralib.Parent{
-			Key: ticket.ParentKey,
+		fields["parent"] = map[string]string{
+			"key": ticket.ParentKey,
+		}
+	}
+
+	// スプリントが指定されている場合はカスタムフィールドに設定
+	if ticket.SprintName != "" && c.sprintFieldID != "" && c.config.Board.ID != 0 {
+		sprintID, err := c.findSprintIDByName(ticket.SprintName)
+		if err != nil {
+			verbose.Printf("スプリントIDの解決に失敗しました（作成時）: %v\n", err)
+		} else if sprintID != 0 {
+			verbose.Printf("作成時にスプリントフィールド %s を設定: %d\n", c.sprintFieldID, sprintID)
+			fields[c.sprintFieldID] = sprintID
 		}
 	}
 
 	// チケットを作成
-	issue := jiralib.Issue{
-		Fields: &fields,
+	issue := map[string]interface{}{
+		"fields": fields,
 	}
 
 	// デバッグ用：リクエストボディをログ出力
@@ -583,39 +594,56 @@ func (c *Client) CreateIssue(ticket *ticket.Ticket) (*ticket.Ticket, error) {
 		verbose.Printf("JIRA Issue作成リクエスト:\n%s\n", string(requestBody))
 	}
 
-	newIssue, response, err := c.jiraClient.Issue.Create(&issue)
+	// JSONボディを作成
+	jsonBody, err := json.Marshal(issue)
 	if err != nil {
-		// HTTP レスポンスボディを読み取って詳細なエラー情報を取得
-		var errorDetails string
-		if response != nil && response.Body != nil {
-			bodyBytes, readErr := io.ReadAll(response.Body)
-			if readErr == nil {
-				errorDetails = string(bodyBytes)
-			}
-		}
-		if errorDetails != "" {
-			return nil, fmt.Errorf("JIRAチケットの作成に失敗しました: %v\nレスポンス詳細: %s", err, errorDetails)
-		}
-		return nil, fmt.Errorf("JIRAチケットの作成に失敗しました: %v", err)
+		return nil, fmt.Errorf("リクエストボディの作成に失敗しました: %v", err)
+	}
+
+	// 直接HTTPリクエストを送信（カスタムフィールド対応のため）
+	req, err := http.NewRequest(http.MethodPost,
+		fmt.Sprintf("%s/rest/api/2/issue", c.config.Server),
+		bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return nil, fmt.Errorf("HTTPリクエストの作成に失敗しました: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.SetBasicAuth(c.config.Login, getAPIToken())
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("HTTPリクエストの送信に失敗しました: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// レスポンスボディを読み取り
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("レスポンスの読み取りに失敗しました: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("JIRAチケットの作成に失敗しました (status: %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	// レスポンスを解析して作成されたチケットのキーを取得
+	var createResponse struct {
+		Key string `json:"key"`
+	}
+	if err := json.Unmarshal(bodyBytes, &createResponse); err != nil {
+		return nil, fmt.Errorf("作成レスポンスの解析に失敗しました: %v", err)
 	}
 
 	// 作成されたチケットをfetchして正しいフォーマットで返す
-	createdTicket, err := c.FetchIssue(newIssue.Key)
+	createdTicket, err := c.FetchIssue(createResponse.Key)
 	if err != nil {
 		return nil, err
 	}
 
-	// スプリントが指定されている場合は、チケットをスプリントに追加
-	if ticket.SprintName != "" {
-		sprintID, err := c.findSprintIDByName(ticket.SprintName)
-		if err != nil {
-			verbose.Printf("スプリントIDの解決に失敗しました: %v\n", err)
-		} else if sprintID != 0 {
-			if err := c.AddIssueToSprint(newIssue.Key, sprintID); err != nil {
-				verbose.Printf("スプリントへの追加に失敗しました: %v\n", err)
-			}
-		}
-	}
+	// スプリントは作成時にカスタムフィールドで直接設定済み
+	verbose.Printf("チケット作成完了: %s (スプリント設定済み)\n", createResponse.Key)
 
 	return createdTicket, nil
 }
