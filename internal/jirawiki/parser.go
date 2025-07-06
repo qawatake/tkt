@@ -137,10 +137,12 @@ func secondPass(lines []string) string {
 			continue
 		}
 
+		// UTF-8セーフな処理のためruneベースに変更
+		runes := []rune(line)
 		var beg int
 
 	out:
-		for beg < len(line) {
+		for beg < len(runes) {
 			end := beg
 
 			if token, ok := tokenStarts(beg, tokens); ok {
@@ -164,7 +166,7 @@ func secondPass(lines []string) string {
 					if token.tag == TagQuote {
 						// If end is same as size of the input, it implies that
 						// we've found a closing token, and we will ignore it.
-						if token.endIdx != len(line)-1 {
+						if token.endIdx != len(runes)-1 {
 							out.WriteString(fmt.Sprintf("\n%s", replacements[token.tag]))
 						}
 					} else {
@@ -176,7 +178,7 @@ func secondPass(lines []string) string {
 							out.WriteString(fmt.Sprintf("\n**%s**\n", t))
 						}
 
-						if token.endIdx != len(line)-1 {
+						if token.endIdx != len(runes)-1 {
 							out.WriteByte(newLine)
 						}
 					}
@@ -184,7 +186,8 @@ func secondPass(lines []string) string {
 					end = token.endIdx
 				}
 			} else {
-				out.WriteRune(rune(line[beg]))
+				// UTF-8セーフな文字出力
+				out.WriteRune(runes[beg])
 			}
 
 			end++
@@ -192,7 +195,9 @@ func secondPass(lines []string) string {
 		}
 
 		lineNum++
-		out.WriteByte(newLine)
+		if lineNum < len(lines) {
+			out.WriteByte(newLine)
+		}
 	}
 
 	// UTF-8セーフなエスケープ文字の処理
@@ -228,6 +233,11 @@ func secondPass(lines []string) string {
 	result = strings.ReplaceAll(result, "\\?", "?")
 	result = strings.ReplaceAll(result, "\\/", "/")
 	result = strings.ReplaceAll(result, "\\\\", "\\")
+
+	// 最後に改行を追加（元の動作に合わせる）
+	if !strings.HasSuffix(result, "\n") {
+		result += "\n"
+	}
 
 	return result
 }
@@ -497,7 +507,15 @@ func (t *Token) handleReferenceLink(line string, out *strings.Builder) int {
 		return t.endIdx
 	}
 
-	body := line[t.startIdx+1 : t.endIdx]
+	// UTF-8セーフな文字列スライシング: runeベースで処理
+	runes := []rune(line)
+	if t.startIdx+1 >= len(runes) || t.endIdx >= len(runes) {
+		// 範囲外の場合は元の文字列をそのまま出力
+		out.WriteString(string(runes[t.startIdx:]))
+		return t.endIdx
+	}
+
+	body := string(runes[t.startIdx+1 : t.endIdx])
 	pieces := strings.Split(body, "|")
 
 	var link string
@@ -505,7 +523,8 @@ func (t *Token) handleReferenceLink(line string, out *strings.Builder) int {
 	if len(pieces) == 2 {
 		link = fmt.Sprintf("[%s](%s)", pieces[0], pieces[1])
 	} else {
-		link = fmt.Sprintf("[](%s)", pieces[0])
+		// エスケープされたブラケットの場合は単純にテキストとして出力
+		link = fmt.Sprintf("[%s]", pieces[0])
 	}
 
 	out.WriteString(link)
@@ -548,10 +567,21 @@ func tokenStarts(idx int, tokens []*Token) (*Token, bool) {
 }
 
 func getTagType(line string, beg int) string {
-	if isTextEffect(line[beg], line[beg+1]) {
+	// UTF-8セーフな実装: バイト境界チェック
+	if beg >= len(line) || beg+1 >= len(line) {
+		return typeTagOther
+	}
+
+	// runeベースの安全な文字アクセス
+	runes := []rune(line)
+	if beg >= len(runes) {
+		return typeTagOther
+	}
+
+	if isTextEffectRune(runes, beg) {
 		return typeTagTextEffect
 	}
-	if isListTag(line[beg], line[beg+1]) {
+	if isListTagRune(runes, beg) {
 		return typeTagList
 	}
 	if isHeadingsTag(beg, line) {
@@ -577,6 +607,25 @@ func isTextEffect(beg, next uint8) bool {
 func isListTag(beg, next uint8) bool {
 	s := string(beg)
 	return (s == TagOrderedList || s == TagUnorderedList) && (next == ' ' || next == beg)
+}
+
+// UTF-8セーフなruneベースの関数
+func isTextEffectRune(runes []rune, beg int) bool {
+	if beg >= len(runes) || beg+1 >= len(runes) {
+		return false
+	}
+	s := string(runes[beg])
+	next := runes[beg+1]
+	return s == TagBold && (next != ' ' && next != runes[beg])
+}
+
+func isListTagRune(runes []rune, beg int) bool {
+	if beg >= len(runes) || beg+1 >= len(runes) {
+		return false
+	}
+	s := string(runes[beg])
+	next := runes[beg+1]
+	return (s == TagOrderedList || s == TagUnorderedList) && (next == ' ' || next == runes[beg])
 }
 
 func isHeadingsTag(beg int, line string) bool {
