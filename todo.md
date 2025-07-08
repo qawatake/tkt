@@ -38,6 +38,8 @@
 - [x] `[ほげ] ふが`みたいなタイトルが文字化けする。(`[]`のあとに日本語があるとだめみたい。)
 - [ ] readmeでコマンドを分類。setup, basic workflow, view
 - [ ] projectが1000コくらいあるケースもあるのでissueTypeを取りすぎるとtkt.ymlが巨大になる。（2万行くらい。）
+- [ ] fuzzy finderが一番したに出てくる。
+- [ ] fuzzy finderやvimをキャンセルしたときに全体の処理をキャンセルする。
 - [ ] バックグラウンドでfetch `updated`
 - [ ] rmコマンドの実装。
 - [ ] editコマンドの実装。
