@@ -1061,7 +1061,7 @@ func (c *Client) GetActiveAndFutureSprints(boardID int) ([]Sprint, error) {
 
 // GetActiveAndFutureSprintsWithContext は指定されたボードのアクティブと未来のスプリントを取得します（ページネーション対応・並列処理）
 func (c *Client) GetActiveAndFutureSprintsWithContext(ctx context.Context, boardID int) ([]Sprint, error) {
-	const pageSize = 1
+	const pageSize = 50
 
 	// 最初のページを取得して全件数を把握
 	firstPageSprints, isLast, total, err := c.getSprintsPageWithTotal(boardID, 0, pageSize, []string{"active", "future"})
