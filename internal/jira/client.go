@@ -1054,6 +1054,86 @@ func (c *Client) GetBoardSprints(boardID int) ([]Sprint, error) {
 	return response.Values, nil
 }
 
+// GetActiveAndFutureSprints は指定されたボードのアクティブと未来のスプリントを取得します（ページネーション対応）
+func (c *Client) GetActiveAndFutureSprints(boardID int) ([]Sprint, error) {
+	var allSprints []Sprint
+	startAt := 0
+	maxResults := 50
+
+	for {
+		sprints, isLast, err := c.getSprintsPage(boardID, startAt, maxResults, []string{"active", "future"})
+		if err != nil {
+			return nil, err
+		}
+
+		allSprints = append(allSprints, sprints...)
+
+		if isLast {
+			break
+		}
+
+		startAt += maxResults
+	}
+
+	return allSprints, nil
+}
+
+// getSprintsPage はスプリントの1ページを取得します
+func (c *Client) getSprintsPage(boardID int, startAt int, maxResults int, states []string) ([]Sprint, bool, error) {
+	url := fmt.Sprintf("%s/rest/agile/1.0/board/%d/sprint", c.config.Server, boardID)
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, false, fmt.Errorf("HTTPリクエストの作成に失敗しました: %v", err)
+	}
+
+	q := req.URL.Query()
+	q.Add("startAt", fmt.Sprintf("%d", startAt))
+	q.Add("maxResults", fmt.Sprintf("%d", maxResults))
+	if len(states) > 0 {
+		q.Add("state", strings.Join(states, ","))
+	}
+	req.URL.RawQuery = q.Encode()
+
+	req.SetBasicAuth(c.config.Login, getAPIToken())
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, false, fmt.Errorf("HTTPリクエストの送信に失敗しました: %v", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, false, fmt.Errorf("レスポンスの読み取りに失敗しました: %v", err)
+	}
+
+	// デバッグ用: APIレスポンスをダンプ
+	fmt.Printf("DEBUG: Sprint API Response (boardID=%d, startAt=%d, maxResults=%d, states=%v):\n", boardID, startAt, maxResults, states)
+	fmt.Printf("Status: %d\n", resp.StatusCode)
+	fmt.Printf("Body: %s\n", string(bodyBytes))
+	fmt.Println("---")
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, false, fmt.Errorf("スプリント取得に失敗しました (status: %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var response struct {
+		Values    []Sprint `json:"values"`
+		StartAt   int      `json:"startAt"`
+		MaxResults int     `json:"maxResults"`
+		Total     int      `json:"total"`
+		IsLast    bool     `json:"isLast"`
+	}
+
+	if err := json.Unmarshal(bodyBytes, &response); err != nil {
+		return nil, false, fmt.Errorf("レスポンスの解析に失敗しました: %v", err)
+	}
+
+	return response.Values, response.IsLast, nil
+}
+
 // GetActiveSprints は指定されたボードのアクティブなスプリントを取得します
 func (c *Client) GetActiveSprints(boardID int) ([]Sprint, error) {
 	url := fmt.Sprintf("%s/rest/agile/1.0/board/%d/sprint?state=active", c.config.Server, boardID)

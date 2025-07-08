@@ -83,17 +83,17 @@ func runCreate() error {
 			return fmt.Errorf("JIRAクライアントの作成に失敗しました: %v", err)
 		}
 
-		// 全スプリントを取得
+		// アクティブと未来のスプリントを取得
 		sprints, err := ui.WithSpinnerValue("スプリント情報を取得中...", func() ([]jira.Sprint, error) {
-			return jiraClient.GetBoardSprints(cfg.Board.ID)
+			return jiraClient.GetActiveAndFutureSprints(cfg.Board.ID)
 		})
 		if err != nil {
 			fmt.Printf("⚠️  スプリント情報の取得に失敗しました: %v\n", err)
 			fmt.Println("スプリントを選択せずに作成を続行します...")
 		} else if len(sprints) > 0 {
-			// スプリントを状態でソート（active -> future -> closed）
+			// スプリントを状態でソート（active -> future）
 			sort.Slice(sprints, func(i, j int) bool {
-				stateOrder := map[string]int{"active": 0, "future": 1, "closed": 2}
+				stateOrder := map[string]int{"active": 0, "future": 1}
 				return stateOrder[sprints[i].State] < stateOrder[sprints[j].State]
 			})
 
@@ -107,8 +107,6 @@ func runCreate() error {
 					statusEmoji = "🟢 "
 				case "future":
 					statusEmoji = "🔵 "
-				case "closed":
-					statusEmoji = "⚫ "
 				}
 				sprintOptions = append(sprintOptions, fmt.Sprintf("%s%s (%s)", statusEmoji, sprint.Name, sprint.State))
 			}
