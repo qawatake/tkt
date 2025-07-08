@@ -1054,37 +1054,69 @@ func (c *Client) GetBoardSprints(boardID int) ([]Sprint, error) {
 	return response.Values, nil
 }
 
-// GetActiveAndFutureSprints は指定されたボードのアクティブと未来のスプリントを取得します（ページネーション対応）
+// GetActiveAndFutureSprints は指定されたボードのアクティブと未来のスプリントを取得します（ページネーション対応・並列処理）
 func (c *Client) GetActiveAndFutureSprints(boardID int) ([]Sprint, error) {
+	return c.GetActiveAndFutureSprintsWithContext(context.Background(), boardID)
+}
+
+// GetActiveAndFutureSprintsWithContext は指定されたボードのアクティブと未来のスプリントを取得します（ページネーション対応・並列処理）
+func (c *Client) GetActiveAndFutureSprintsWithContext(ctx context.Context, boardID int) ([]Sprint, error) {
+	const pageSize = 1
+
+	// 最初のページを取得して全件数を把握
+	firstPageSprints, isLast, total, err := c.getSprintsPageWithTotal(boardID, 0, pageSize, []string{"active", "future"})
+	if err != nil {
+		return nil, err
+	}
+
+	// 最初のページだけで終了の場合
+	if isLast || total <= pageSize {
+		return firstPageSprints, nil
+	}
+
+	// 必要なページ数を計算
+	maxResults := pageSize
+	totalPages := (total + maxResults - 1) / maxResults // 切り上げ除算
+
+	// 結果を格納するスライス
 	var allSprints []Sprint
-	startAt := 0
-	maxResults := 50
+	allSprints = append(allSprints, firstPageSprints...)
 
-	for {
-		sprints, isLast, err := c.getSprintsPage(boardID, startAt, maxResults, []string{"active", "future"})
-		if err != nil {
-			return nil, err
-		}
+	// 2ページ目以降を並列で取得
+	p := pool.NewWithResults[[]Sprint]().WithContext(ctx).WithMaxGoroutines(5)
 
-		allSprints = append(allSprints, sprints...)
+	for page := 1; page < totalPages; page++ {
+		currentStartAt := page * maxResults
+		p.Go(func(ctx context.Context) ([]Sprint, error) {
+			sprints, _, _, err := c.getSprintsPageWithTotal(boardID, currentStartAt, maxResults, []string{"active", "future"})
+			if err != nil {
+				return nil, err
+			}
+			return sprints, nil
+		})
+	}
 
-		if isLast {
-			break
-		}
+	// 並列処理結果を取得
+	results, err := p.Wait()
+	if err != nil {
+		return nil, err
+	}
 
-		startAt += maxResults
+	// 結果をマージ（ページ順序を保持するため、startAtでソート）
+	for _, pageResults := range results {
+		allSprints = append(allSprints, pageResults...)
 	}
 
 	return allSprints, nil
 }
 
-// getSprintsPage はスプリントの1ページを取得します
-func (c *Client) getSprintsPage(boardID int, startAt int, maxResults int, states []string) ([]Sprint, bool, error) {
+// getSprintsPageWithTotal はスプリントの1ページを取得します（総数情報付き）
+func (c *Client) getSprintsPageWithTotal(boardID int, startAt int, maxResults int, states []string) ([]Sprint, bool, int, error) {
 	url := fmt.Sprintf("%s/rest/agile/1.0/board/%d/sprint", c.config.Server, boardID)
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		return nil, false, fmt.Errorf("HTTPリクエストの作成に失敗しました: %v", err)
+		return nil, false, 0, fmt.Errorf("HTTPリクエストの作成に失敗しました: %v", err)
 	}
 
 	q := req.URL.Query()
@@ -1100,13 +1132,13 @@ func (c *Client) getSprintsPage(boardID int, startAt int, maxResults int, states
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, false, fmt.Errorf("HTTPリクエストの送信に失敗しました: %v", err)
+		return nil, false, 0, fmt.Errorf("HTTPリクエストの送信に失敗しました: %v", err)
 	}
 	defer resp.Body.Close()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, false, fmt.Errorf("レスポンスの読み取りに失敗しました: %v", err)
+		return nil, false, 0, fmt.Errorf("レスポンスの読み取りに失敗しました: %v", err)
 	}
 
 	// デバッグ用: APIレスポンスをダンプ
@@ -1116,22 +1148,28 @@ func (c *Client) getSprintsPage(boardID int, startAt int, maxResults int, states
 	fmt.Println("---")
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, false, fmt.Errorf("スプリント取得に失敗しました (status: %d): %s", resp.StatusCode, string(bodyBytes))
+		return nil, false, 0, fmt.Errorf("スプリント取得に失敗しました (status: %d): %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var response struct {
-		Values    []Sprint `json:"values"`
-		StartAt   int      `json:"startAt"`
-		MaxResults int     `json:"maxResults"`
-		Total     int      `json:"total"`
-		IsLast    bool     `json:"isLast"`
+		Values     []Sprint `json:"values"`
+		StartAt    int      `json:"startAt"`
+		MaxResults int      `json:"maxResults"`
+		Total      int      `json:"total"`
+		IsLast     bool     `json:"isLast"`
 	}
 
 	if err := json.Unmarshal(bodyBytes, &response); err != nil {
-		return nil, false, fmt.Errorf("レスポンスの解析に失敗しました: %v", err)
+		return nil, false, 0, fmt.Errorf("レスポンスの解析に失敗しました: %v", err)
 	}
 
-	return response.Values, response.IsLast, nil
+	return response.Values, response.IsLast, response.Total, nil
+}
+
+// getSprintsPage はスプリントの1ページを取得します
+func (c *Client) getSprintsPage(boardID int, startAt int, maxResults int, states []string) ([]Sprint, bool, error) {
+	sprints, isLast, _, err := c.getSprintsPageWithTotal(boardID, startAt, maxResults, states)
+	return sprints, isLast, err
 }
 
 // GetActiveSprints は指定されたボードのアクティブなスプリントを取得します
