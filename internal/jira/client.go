@@ -132,6 +132,37 @@ func (c *Client) FetchIssues() (_ []*ticket.Ticket, err error) {
 		jql = JQL(fmt.Sprintf("project = %s", c.config.Project.Key))
 	}
 
+	return c.fetchIssuesWithJQL(jql)
+}
+
+// FetchIssuesIncremental は最終フェッチ時刻以降に更新されたチケットのみを取得します
+func (c *Client) FetchIssuesIncremental(lastFetch time.Time) (_ []*ticket.Ticket, err error) {
+	defer derrors.Wrap(&err)
+	// まずプロジェクトが存在するか確認
+	if err := c.validateProject(); err != nil {
+		return nil, err
+	}
+
+	// 基本のJQLクエリを作成
+	baseJQL := c.config.JQL
+	if baseJQL == "" {
+		baseJQL = fmt.Sprintf("project = %s", c.config.Project.Key)
+	}
+
+	// 最終フェッチ時刻以降の更新条件を追加
+	// JIRAのJQLでは yyyy/MM/dd HH:mm 形式を使用（分単位）
+	lastFetchJQL := lastFetch.Format("2006/01/02 15:04")
+	incrementalJQL := fmt.Sprintf("(%s) AND updated >= \"%s\"", baseJQL, lastFetchJQL)
+
+	verbose.Printf("増分フェッチ用JQL: %s\n", incrementalJQL)
+
+	return c.fetchIssuesWithJQL(JQL(incrementalJQL))
+}
+
+// fetchIssuesWithJQL は指定されたJQLでチケットを取得する共通処理です
+func (c *Client) fetchIssuesWithJQL(jql JQL) (_ []*ticket.Ticket, err error) {
+	defer derrors.Wrap(&err)
+
 	fetchIssues := func() (_ []*Issue, err error) {
 		defer derrors.Wrap(&err)
 		issues := make([]*Issue, 0, 10000)
@@ -808,12 +839,24 @@ func (c *Client) Search(ctx context.Context, jql JQL, startAt, maxResults int) (
 	}
 	defer resp.Body.Close()
 
+	// レスポンスボディを読み取り、デバッグ出力
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	verbose.Printf("=== JIRA Search API Response ===\n")
+	verbose.Printf("Status: %s\n", resp.Status)
+	verbose.Printf("JQL: %s\n", jql)
+	verbose.Printf("Body: %s\n", string(bodyBytes))
+	verbose.Printf("================================\n")
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, errors.New("JIRA APIリクエストが失敗しました: " + resp.Status)
 	}
 
 	var result SearchResult
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.Unmarshal(bodyBytes, &result); err != nil {
 		return nil, err
 	}
 
