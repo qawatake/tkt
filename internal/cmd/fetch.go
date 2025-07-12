@@ -81,10 +81,20 @@ var fetchCmd = &cobra.Command{
 
 			verbose.Printf("%d 件のチケットを取得しました\n", len(tickets))
 
-			// 5. キャッシュディレクトリを確保（既存ファイルは削除しない）
-			cacheDir, err := config.EnsureCacheDir()
-			if err != nil {
-				return 0, fmt.Errorf("キャッシュディレクトリの作成に失敗しました: %v", err)
+			// 5. キャッシュディレクトリを確保
+			var cacheDir string
+			if cleanFetch {
+				// クリーンフェッチの場合は既存ファイルを削除
+				cacheDir, err = config.ClearCacheDir()
+				if err != nil {
+					return 0, fmt.Errorf("キャッシュディレクトリのクリアに失敗しました: %v", err)
+				}
+			} else {
+				// 通常の増分フェッチの場合は既存ファイルを保持
+				cacheDir, err = config.EnsureCacheDir()
+				if err != nil {
+					return 0, fmt.Errorf("キャッシュディレクトリの作成に失敗しました: %v", err)
+				}
 			}
 
 			// チケットを処理
