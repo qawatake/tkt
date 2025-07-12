@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/charmbracelet/huh"
 	"github.com/ktr0731/go-fuzzyfinder"
 	"github.com/qawatake/tkt/internal/config"
 	"github.com/qawatake/tkt/internal/jira"
@@ -40,38 +41,46 @@ func runCreate() error {
 	fmt.Println("🎫 新しいJIRAチケット作成")
 	fmt.Println("========================")
 
-	// 1. タイトルを入力
-	title, err := ui.PromptForText("チケットタイトル (必須):", "チケットのタイトルを入力してください", true)
-	if err != nil {
-		return fmt.Errorf("タイトル入力がキャンセルされました: %v", err)
-	}
+	var title, selectedType string
 
-	// 2. チケットタイプを選択 (プロジェクトに対応するもののみ)
-	var availableTypes []config.IssueType
-
-	// プロジェクト固有のAPIから取得したすべてのIssue Typeを使用
-	availableTypes = cfg.Issue.Types
-
+	// 1. タイトルとチケットタイプを入力
+	availableTypes := cfg.Issue.Types
 	if len(availableTypes) == 0 {
 		return fmt.Errorf("プロジェクト '%s' に対応するチケットタイプが見つかりません", cfg.Project.Key)
 	}
 
-	fmt.Println("\n📋 チケットタイプを選択してください:")
-
-	typeIdx, err := fuzzyfinder.Find(
-		availableTypes,
-		func(i int) string {
-			return availableTypes[i].Name
-		},
-		fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
-			t := availableTypes[i]
-			return fmt.Sprintf("タイプ: %s\nID: %s\nサブタスク: %t", t.Name, t.ID, t.Subtask)
-		}),
-	)
-	if err != nil {
-		return fmt.Errorf("チケットタイプの選択がキャンセルされました: %v", err)
+	// チケットタイプの選択肢を準備
+	typeOptions := make([]huh.Option[string], len(availableTypes))
+	for i, issueType := range availableTypes {
+		typeOptions[i] = huh.NewOption(issueType.Name, issueType.Name)
 	}
-	selectedType := availableTypes[typeIdx].Name
+
+	basicForm := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("チケットタイトル").
+				Description("作成するチケットのタイトル").
+				Placeholder("チケットのタイトルを入力してください").
+				Value(&title).
+				Validate(func(s string) error {
+					if s == "" {
+						return fmt.Errorf("チケットタイトルは必須です")
+					}
+					return nil
+				}),
+
+			huh.NewSelect[string]().
+				Title("チケットタイプ").
+				Description("作成するチケットの種類を選択").
+				Options(typeOptions...).
+				Value(&selectedType),
+		),
+	).WithTheme(huh.ThemeBase())
+
+	err = basicForm.Run()
+	if err != nil {
+		return fmt.Errorf("基本情報の入力がキャンセルされました: %v", err)
+	}
 
 	// 3. スプリント選択
 	var selectedSprintName string
