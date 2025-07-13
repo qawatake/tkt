@@ -85,32 +85,16 @@ func runInteractiveRM(cfg *config.Config) error {
 		return nil
 	}
 
-	// 確認
-	fmt.Printf("以下の%dつのチケットを削除しますか？\n", len(selectedTickets))
-	for _, item := range selectedTickets {
-		fmt.Printf("  - %s: %s\n", item.key, item.title)
-	}
-
-	confirmed, err := ui.PromptForConfirmation("削除しますか？")
-	if err != nil {
-		return err
-	}
-
-	if !confirmed {
-		fmt.Println("削除がキャンセルされました")
-		return nil
-	}
 
 	// 削除実行
-	_, err = ui.WithSpinnerValue("チケットを削除中...", func() (interface{}, error) {
+	return ui.WithSpinner("チケットを削除中...", func() error {
 		for _, item := range selectedTickets {
 			if err := deleteTicketWithPath(item); err != nil {
-				return nil, fmt.Errorf("チケット %s の削除に失敗しました: %v", item.ticket.Key, err)
+				return fmt.Errorf("チケット %s の削除に失敗しました: %v", item.ticket.Key, err)
 			}
 		}
-		return nil, nil
+		return nil
 	})
-	return err
 }
 
 func runDirectRM(cfg *config.Config, ticketKeys []string) error {
@@ -137,32 +121,16 @@ func runDirectRM(cfg *config.Config, ticketKeys []string) error {
 		})
 	}
 
-	// 確認
-	fmt.Printf("以下の%dつのチケットを削除しますか？\n", len(ticketItems))
-	for _, item := range ticketItems {
-		fmt.Printf("  - %s: %s\n", item.key, item.title)
-	}
-
-	confirmed, err := ui.PromptForConfirmation("削除しますか？")
-	if err != nil {
-		return err
-	}
-
-	if !confirmed {
-		fmt.Println("削除がキャンセルされました")
-		return nil
-	}
 
 	// 削除実行
-	_, err = ui.WithSpinnerValue("チケットを削除中...", func() (interface{}, error) {
+	return ui.WithSpinner("チケットを削除中...", func() error {
 		for _, item := range ticketItems {
 			if err := deleteTicketWithPath(item); err != nil {
-				return nil, fmt.Errorf("チケット %s の削除に失敗しました: %v", item.key, err)
+				return fmt.Errorf("チケット %s の削除に失敗しました: %v", item.key, err)
 			}
 		}
-		return nil, nil
+		return nil
 	})
-	return err
 }
 
 func deleteTicket(ticketDir string, t *ticket.Ticket) error {
