@@ -152,6 +152,10 @@ func runCreate() error {
 	fmt.Println("\n📝 ボディを編集します (vimエディタが開きます)...")
 	body, err := openEditor()
 	if err != nil {
+		if strings.Contains(err.Error(), "保存せずに終了") {
+			fmt.Println("⚠️ エディタが保存せずに終了されたため、チケット作成をキャンセルします。")
+			return nil
+		}
 		return fmt.Errorf("エディタの起動に失敗しました: %v", err)
 	}
 
@@ -195,6 +199,14 @@ func openEditor() (string, error) {
 	defer os.Remove(tmpFile.Name())
 	defer tmpFile.Close()
 
+	// ファイルの初期状態を記録
+	initialStat, err := os.Stat(tmpFile.Name())
+	if err != nil {
+		return "", fmt.Errorf("ファイル情報の取得に失敗しました: %v", err)
+	}
+	initialModTime := initialStat.ModTime()
+	initialSize := initialStat.Size()
+
 	tmpFile.Close()
 
 	// vimエディタを起動 (insertモードで開始)
@@ -207,6 +219,17 @@ func openEditor() (string, error) {
 		return "", fmt.Errorf("vimエディタの実行に失敗しました: %v", err)
 	}
 
+	// ファイルの変更を確認
+	finalStat, err := os.Stat(tmpFile.Name())
+	if err != nil {
+		return "", fmt.Errorf("ファイル情報の取得に失敗しました: %v", err)
+	}
+
+	// ファイルが変更されていない場合（サイズも変更時刻も同じ）は保存されていないと判断
+	if finalStat.ModTime().Equal(initialModTime) && finalStat.Size() == initialSize {
+		return "", fmt.Errorf("エディタが保存せずに終了されました")
+	}
+
 	// ファイルの内容を読み取り
 	content, err := os.ReadFile(tmpFile.Name())
 	if err != nil {
@@ -214,5 +237,6 @@ func openEditor() (string, error) {
 	}
 
 	body := strings.TrimSpace(string(content))
+
 	return body, nil
 }
