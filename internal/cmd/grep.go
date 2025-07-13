@@ -60,6 +60,12 @@ var grepCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+
+		// Ctrl+Cで終了した場合はexit code 1で終了
+		if model.cancelled {
+			os.Exit(1)
+		}
+
 		t := model.Selected()
 		dto := ticketDTO{
 			Key:              t.Key,
@@ -108,6 +114,7 @@ type grepModel struct {
 	width         int
 	height        int
 	configDir     string // 設定されたディレクトリを保持
+	cancelled     bool   // Ctrl+Cで終了したかどうか
 }
 
 type ticketItem struct {
@@ -179,6 +186,7 @@ func (m *grepModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c":
+			m.cancelled = true
 			return m, tea.Quit
 
 		case "enter":
