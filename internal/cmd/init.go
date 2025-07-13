@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/charmbracelet/huh"
-	"github.com/ktr0731/go-fuzzyfinder"
 	"github.com/qawatake/tkt/internal/config"
 	"github.com/qawatake/tkt/internal/ui"
 	"github.com/spf13/cobra"
@@ -130,21 +129,20 @@ func runInit() error {
 	}
 
 	// 5. プロジェクトを選択
-	fmt.Println("\n📋 プロジェクトを選択してください (入力してフィルタリング可能):")
-	projectIdx, err := fuzzyfinder.Find(
-		projects,
-		func(i int) string {
-			return fmt.Sprintf("%s (%s)", projects[i].Name, projects[i].Key)
-		},
-		fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
-			return fmt.Sprintf("プロジェクト: %s\nキー: %s\nID: %s",
-				projects[i].Name, projects[i].Key, projects[i].ID)
-		}),
-	)
+	projectOptions := make([]ui.SelectorOption, len(projects))
+	for i, project := range projects {
+		projectOptions[i] = ui.SelectorOption{
+			Title:       fmt.Sprintf("%s (%s)", project.Name, project.Key),
+			Description: fmt.Sprintf("ID: %s", project.ID),
+			Value:       project,
+		}
+	}
+
+	selectedProjectValue, err := ui.Select("📋 プロジェクトを選択してください:", projectOptions)
 	if err != nil {
 		return fmt.Errorf("プロジェクトの選択がキャンセルされました: %v", err)
 	}
-	selectedProject := &projects[projectIdx]
+	selectedProject := selectedProjectValue.(JiraProject)
 
 	// 6. ボード一覧を取得
 	boards, err := ui.WithSpinnerValue(fmt.Sprintf("プロジェクト '%s' のボード一覧を取得中...", selectedProject.Name), func() ([]JiraBoard, error) {
@@ -164,21 +162,21 @@ func runInit() error {
 		}
 	} else {
 		// 7. ボードを選択
-		fmt.Println("\n📊 ボードを選択してください (入力してフィルタリング可能):")
-		boardIdx, err := fuzzyfinder.Find(
-			boards,
-			func(i int) string {
-				return fmt.Sprintf("%s (ID: %d)", boards[i].Name, boards[i].ID)
-			},
-			fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
-				return fmt.Sprintf("ボード: %s\nID: %d\nタイプ: %s",
-					boards[i].Name, boards[i].ID, boards[i].Type)
-			}),
-		)
+		boardOptions := make([]ui.SelectorOption, len(boards))
+		for i, board := range boards {
+			boardOptions[i] = ui.SelectorOption{
+				Title:       fmt.Sprintf("%s (ID: %d)", board.Name, board.ID),
+				Description: fmt.Sprintf("タイプ: %s", board.Type),
+				Value:       board,
+			}
+		}
+
+		selectedBoardValue, err := ui.Select("📊 ボードを選択してください:", boardOptions)
 		if err != nil {
 			return fmt.Errorf("ボードの選択がキャンセルされました: %v", err)
 		}
-		selectedBoard = &boards[boardIdx]
+		selectedBoardResult := selectedBoardValue.(JiraBoard)
+		selectedBoard = &selectedBoardResult
 	}
 
 	// 8. JQLとディレクトリ設定フォーム

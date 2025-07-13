@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
-	"github.com/ktr0731/go-fuzzyfinder"
 	"github.com/qawatake/tkt/internal/config"
 	"github.com/qawatake/tkt/internal/jira"
 	"github.com/qawatake/tkt/internal/ticket"
@@ -111,10 +110,17 @@ func runCreate() error {
 				return stateOrder[sprints[i].State] < stateOrder[sprints[j].State]
 			})
 
-			// "スプリントに追加しない"オプションを先頭に追加
-			sprintOptions := []string{"スプリントに追加しない"}
+			// スプリント選択オプションを準備
+			sprintSelectorOptions := make([]ui.SelectorOption, len(sprints)+1)
 
-			for _, sprint := range sprints {
+			// "スプリントに追加しない"オプションを先頭に追加
+			sprintSelectorOptions[0] = ui.SelectorOption{
+				Title:       "スプリントに追加しない",
+				Description: "スプリントを指定せずにチケットを作成",
+				Value:       "",
+			}
+
+			for i, sprint := range sprints {
 				statusEmoji := ""
 				switch sprint.State {
 				case "active":
@@ -122,30 +128,20 @@ func runCreate() error {
 				case "future":
 					statusEmoji = "🔵 "
 				}
-				sprintOptions = append(sprintOptions, fmt.Sprintf("%s%s (%s)", statusEmoji, sprint.Name, sprint.State))
+
+				sprintSelectorOptions[i+1] = ui.SelectorOption{
+					Title:       fmt.Sprintf("%s%s (%s)", statusEmoji, sprint.Name, sprint.State),
+					Description: fmt.Sprintf("ID: %d | 開始: %s | 終了: %s", sprint.ID, sprint.StartDate, sprint.EndDate),
+					Value:       sprint.Name,
+				}
 			}
 
-			fmt.Println("\n🏃 スプリントを選択してください:")
-			sprintIdx, err := fuzzyfinder.Find(
-				sprintOptions,
-				func(i int) string {
-					return sprintOptions[i]
-				},
-				fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
-					if i == 0 {
-						return "スプリントに追加しません"
-					}
-					s := sprints[i-1]
-					return fmt.Sprintf("スプリント: %s\nID: %d\n状態: %s\n開始日: %s\n終了日: %s",
-						s.Name, s.ID, s.State, s.StartDate, s.EndDate)
-				}),
-			)
+			selectedSprintValue, err := ui.Select("🏃 スプリントを選択してください:", sprintSelectorOptions)
 			if err != nil {
 				fmt.Printf("⚠️  スプリント選択がキャンセルされました: %v\n", err)
 				fmt.Println("スプリントを選択せずに作成を続行します...")
-			} else if sprintIdx > 0 {
-				// インデックス0は「スプリントに追加しない」なので、1以上の場合のみ設定
-				selectedSprintName = sprints[sprintIdx-1].Name
+			} else {
+				selectedSprintName = selectedSprintValue.(string)
 			}
 		}
 	} else {
