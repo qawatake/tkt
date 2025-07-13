@@ -3,6 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/qawatake/tkt/internal/config"
@@ -177,7 +179,7 @@ keyがチケットはリモートにないチケットのため、JIRAにチケ�
 		}
 
 		// 実際に適用（conc poolを使用して最大5並列で処理）
-		var updatedCount, createdCount int
+		var updatedCount, createdCount, deletedCount int
 		var mu sync.Mutex
 
 		err = ui.WithSpinner("変更を適用中...", func() error {
@@ -190,6 +192,43 @@ keyがチケットはリモートにないチケットのため、JIRAにチケ�
 			p := pool.New().WithMaxGoroutines(5).WithErrors()
 			for _, diff := range confirmedTickets {
 				p.Go(func() error {
+					// 削除されたチケットかどうかをチェック
+					if strings.HasPrefix(filepath.Base(diff.FilePath), ".") {
+						// 削除されたチケットの処理
+						localTicket, err := ticket.FromFile(diff.FilePath)
+						if err != nil {
+							return fmt.Errorf("削除対象チケット %s の読み込みに失敗しました: %v", diff.Key, err)
+						}
+
+						verbose.Printf("チケットを削除中: %s\n", localTicket.Key)
+
+						// JIRAからチケットを削除
+						err = jiraClient.DeleteIssue(localTicket.Key)
+						if err != nil {
+							return fmt.Errorf("チケット削除に失敗しました: %v", err)
+						}
+
+						// 削除マークファイル（ドットプレフィックス）を削除
+						err = os.Remove(diff.FilePath)
+						if err != nil {
+							verbose.Printf("警告: 削除マークファイル %s の削除に失敗しました: %v\n", diff.FilePath, err)
+						}
+
+						// キャッシュからも削除
+						originalFileName := filepath.Base(diff.FilePath)[1:] // .PRJ-123.md -> PRJ-123.md
+						cacheFile := filepath.Join(cacheDir, originalFileName)
+						err = os.Remove(cacheFile)
+						if err != nil && !os.IsNotExist(err) {
+							verbose.Printf("警告: キャッシュファイル %s の削除に失敗しました: %v\n", cacheFile, err)
+						}
+
+						verbose.Printf("削除完了: %s\n", localTicket.Key)
+						mu.Lock()
+						deletedCount++
+						mu.Unlock()
+						return nil
+					}
+
 					localTicket, err := ticket.FromFile(diff.FilePath)
 					if err != nil {
 						return fmt.Errorf("チケット %s の読み込みに失敗しました: %v", diff.Key, err)
@@ -271,11 +310,11 @@ keyがチケットはリモートにないチケットのため、JIRAにチケ�
 		})
 		if err != nil {
 			fmt.Printf("以下のエラーが発生しました:\n%v\n", err)
-			fmt.Printf("成功した分: %d 件作成, %d 件更新\n", createdCount, updatedCount)
+			fmt.Printf("成功した分: %d 件作成, %d 件更新, %d 件削除\n", createdCount, updatedCount, deletedCount)
 			return fmt.Errorf("一部の処理でエラーが発生しました")
 		}
 
-		verbose.Printf("\n完了: %d 件作成, %d 件更新\n", createdCount, updatedCount)
+		verbose.Printf("\n完了: %d 件作成, %d 件更新, %d 件削除\n", createdCount, updatedCount, deletedCount)
 		return nil
 	},
 }

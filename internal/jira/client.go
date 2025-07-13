@@ -1366,3 +1366,29 @@ func (c *Client) discoverSprintField() error {
 
 	return fmt.Errorf("スプリントフィールドが見つかりませんでした")
 }
+
+// DeleteIssue はJIRAからチケットを削除します
+func (c *Client) DeleteIssue(issueKey string) error {
+	req, err := http.NewRequest(http.MethodDelete,
+		fmt.Sprintf("%s/rest/api/2/issue/%s", c.config.Server, issueKey), nil)
+	if err != nil {
+		return fmt.Errorf("HTTPリクエストの作成に失敗しました: %v", err)
+	}
+
+	req.SetBasicAuth(c.config.Login, getAPIToken())
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("HTTPリクエストの送信に失敗しました: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		errorMsg := string(bodyBytes)
+		return fmt.Errorf("JIRAチケットの削除に失敗しました (status: %d): %s", resp.StatusCode, errorMsg)
+	}
+
+	return nil
+}

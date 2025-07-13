@@ -26,10 +26,31 @@ type DiffResult struct {
 func CompareDirs(localDir, cacheDir string) ([]DiffResult, error) {
 	var results []DiffResult
 
-	// ローカルディレクトリ内のファイルを走査
+	// 通常のファイルと削除済みファイル（ドットプレフィックス）を両方検索
 	localFiles, err := filepath.Glob(filepath.Join(localDir, "*.md"))
 	if err != nil {
 		return nil, fmt.Errorf("ローカルファイルの検索に失敗しました: %v", err)
+	}
+
+	deletedFiles, err := filepath.Glob(filepath.Join(localDir, ".*.md"))
+	if err != nil {
+		return nil, fmt.Errorf("削除済みファイルの検索に失敗しました: %v", err)
+	}
+
+	// 削除済みファイルを処理
+	for _, deletedFile := range deletedFiles {
+		// 削除されたファイルを読み込み
+		deletedTicket, err := FromFile(deletedFile)
+		if err != nil {
+			return nil, fmt.Errorf("削除済みファイルの読み込みに失敗しました: %v", err)
+		}
+
+		results = append(results, DiffResult{
+			Key:      deletedTicket.Key,
+			FilePath: deletedFile,
+			HasDiff:  true,
+			DiffText: fmt.Sprintf("削除されたチケット: %s", deletedTicket.Title),
+		})
 	}
 
 	for _, localFile := range localFiles {
