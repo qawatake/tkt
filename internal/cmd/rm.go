@@ -46,12 +46,12 @@ var rmCmd = &cobra.Command{
 
 func runInteractiveRM(cfg *config.Config) error {
 	// チケットを読み込み
-	tickets, err := loadTicketsFromTmp(cfg.Directory)
+	ticketsWithPath, err := loadTicketsFromTmp(cfg.Directory)
 	if err != nil {
 		return fmt.Errorf("チケットの読み込みに失敗しました: %v", err)
 	}
 
-	if len(tickets) == 0 {
+	if len(ticketsWithPath) == 0 {
 		fmt.Println("削除可能なチケットが見つかりません")
 		return nil
 	}
@@ -63,7 +63,7 @@ func runInteractiveRM(cfg *config.Config) error {
 	defer tty.Close()
 
 	// Bubble Teaアプリを起動
-	model, err := newRMModel(tickets, cfg.Directory)
+	model, err := newRMModel(ticketsWithPath, cfg.Directory)
 	if err != nil {
 		return err
 	}
@@ -87,8 +87,8 @@ func runInteractiveRM(cfg *config.Config) error {
 
 	// 確認
 	fmt.Printf("以下の%dつのチケットを削除しますか？\n", len(selectedTickets))
-	for _, t := range selectedTickets {
-		fmt.Printf("  - %s: %s\n", t.Key, t.Title)
+	for _, item := range selectedTickets {
+		fmt.Printf("  - %s: %s\n", item.key, item.title)
 	}
 
 	confirmed, err := ui.PromptForConfirmation("削除しますか？")
@@ -103,9 +103,9 @@ func runInteractiveRM(cfg *config.Config) error {
 
 	// 削除実行
 	_, err = ui.WithSpinnerValue("チケットを削除中...", func() (interface{}, error) {
-		for _, t := range selectedTickets {
-			if err := deleteTicket(cfg.Directory, t); err != nil {
-				return nil, fmt.Errorf("チケット %s の削除に失敗しました: %v", t.Key, err)
+		for _, item := range selectedTickets {
+			if err := deleteTicketWithPath(item); err != nil {
+				return nil, fmt.Errorf("チケット %s の削除に失敗しました: %v", item.ticket.Key, err)
 			}
 		}
 		return nil, nil
@@ -115,20 +115,26 @@ func runInteractiveRM(cfg *config.Config) error {
 
 func runDirectRM(cfg *config.Config, ticketKeys []string) error {
 	// 指定されたチケットを読み込み
-	var tickets []*ticket.Ticket
+	var ticketItems []rmTicketItem
 	for _, key := range ticketKeys {
 		filePath := filepath.Join(cfg.Directory, key+".md")
 		t, err := ticket.FromFile(filePath)
 		if err != nil {
 			return fmt.Errorf("チケット %s が見つかりません: %v", key, err)
 		}
-		tickets = append(tickets, t)
+		ticketItems = append(ticketItems, rmTicketItem{
+			key:      t.Key,
+			title:    t.Title,
+			content:  t.Body,
+			ticket:   t,
+			filePath: filePath,
+		})
 	}
 
 	// 確認
-	fmt.Printf("以下の%dつのチケットを削除しますか？\n", len(tickets))
-	for _, t := range tickets {
-		fmt.Printf("  - %s: %s\n", t.Key, t.Title)
+	fmt.Printf("以下の%dつのチケットを削除しますか？\n", len(ticketItems))
+	for _, item := range ticketItems {
+		fmt.Printf("  - %s: %s\n", item.key, item.title)
 	}
 
 	confirmed, err := ui.PromptForConfirmation("削除しますか？")
@@ -143,9 +149,9 @@ func runDirectRM(cfg *config.Config, ticketKeys []string) error {
 
 	// 削除実行
 	_, err = ui.WithSpinnerValue("チケットを削除中...", func() (interface{}, error) {
-		for _, t := range tickets {
-			if err := deleteTicket(cfg.Directory, t); err != nil {
-				return nil, fmt.Errorf("チケット %s の削除に失敗しました: %v", t.Key, err)
+		for _, item := range ticketItems {
+			if err := deleteTicketWithPath(item); err != nil {
+				return nil, fmt.Errorf("チケット %s の削除に失敗しました: %v", item.key, err)
 			}
 		}
 		return nil, nil
@@ -164,6 +170,19 @@ func deleteTicket(ticketDir string, t *ticket.Ticket) error {
 	} else {
 		// 一時ファイルの場合：物理削除
 		return os.Remove(originalPath)
+	}
+}
+
+func deleteTicketWithPath(item rmTicketItem) error {
+	// チケットがJIRAキーを持つかどうかをチェック
+	if isValidJIRAKey(item.ticket.Key) {
+		// JIRAキー付きチケットの場合：ドットプレフィックスでマーク
+		dir := filepath.Dir(item.filePath)
+		deletedPath := filepath.Join(dir, "."+item.ticket.Key+".md")
+		return os.Rename(item.filePath, deletedPath)
+	} else {
+		// 一時ファイルの場合：実際のファイルパスを使って物理削除
+		return os.Remove(item.filePath)
 	}
 }
 
@@ -196,8 +215,13 @@ func isValidJIRAKey(key string) bool {
 	return true
 }
 
-func loadTicketsFromTmp(ticketDir string) ([]*ticket.Ticket, error) {
-	var tickets []*ticket.Ticket
+type ticketWithPath struct {
+	ticket   *ticket.Ticket
+	filePath string
+}
+
+func loadTicketsFromTmp(ticketDir string) ([]ticketWithPath, error) {
+	var tickets []ticketWithPath
 
 	err := filepath.WalkDir(ticketDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -217,7 +241,10 @@ func loadTicketsFromTmp(ticketDir string) ([]*ticket.Ticket, error) {
 			}
 			// 有効なチケット（keyまたはtitleが存在）のみを追加
 			if t.Key != "" || t.Title != "" {
-				tickets = append(tickets, t)
+				tickets = append(tickets, ticketWithPath{
+					ticket:   t,
+					filePath: path,
+				})
 			}
 		}
 		return nil
@@ -264,13 +291,14 @@ type rmModel struct {
 }
 
 type rmTicketItem struct {
-	key     string
-	title   string
-	content string
-	ticket  *ticket.Ticket
+	key      string
+	title    string
+	content  string
+	ticket   *ticket.Ticket
+	filePath string
 }
 
-func newRMModel(tickets []*ticket.Ticket, ticketDir string) (_ *rmModel, err error) {
+func newRMModel(ticketsWithPath []ticketWithPath, ticketDir string) (_ *rmModel, err error) {
 	defer derrors.Wrap(&err)
 	input := textinput.New()
 	input.Focus()
@@ -284,21 +312,22 @@ func newRMModel(tickets []*ticket.Ticket, ticketDir string) (_ *rmModel, err err
 	}
 
 	// updated_atの降順でソート
-	sort.Slice(tickets, func(i, j int) bool {
-		return tickets[i].UpdatedAt.After(tickets[j].UpdatedAt)
+	sort.Slice(ticketsWithPath, func(i, j int) bool {
+		return ticketsWithPath[i].ticket.UpdatedAt.After(ticketsWithPath[j].ticket.UpdatedAt)
 	})
 
 	var items []rmTicketItem
-	for _, t := range tickets {
+	for _, tp := range ticketsWithPath {
 		// 空のチケット（keyもtitleも空）をスキップ
-		if t.Key == "" && t.Title == "" {
+		if tp.ticket.Key == "" && tp.ticket.Title == "" {
 			continue
 		}
 		items = append(items, rmTicketItem{
-			key:     t.Key,
-			title:   t.Title,
-			content: t.Body,
-			ticket:  t,
+			key:      tp.ticket.Key,
+			title:    tp.ticket.Title,
+			content:  tp.ticket.Body,
+			ticket:   tp.ticket,
+			filePath: tp.filePath,
 		})
 	}
 
@@ -718,11 +747,11 @@ func (m *rmModel) renderRightPane(width, height int) string {
 	return strings.Join(items, "\n")
 }
 
-func (m *rmModel) SelectedTickets() []*ticket.Ticket {
-	var selected []*ticket.Ticket
+func (m *rmModel) SelectedTickets() []rmTicketItem {
+	var selected []rmTicketItem
 	for i, item := range m.tickets {
 		if m.selectedMap[i] {
-			selected = append(selected, item.ticket)
+			selected = append(selected, item)
 		}
 	}
 	return selected
