@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/qawatake/tkt/internal/derrors"
 	"github.com/spf13/viper"
@@ -149,4 +150,46 @@ func getCacheDir(config *Config, workDir string) string {
 	cacheDir := filepath.Join(baseCacheDir, hashStr)
 
 	return cacheDir
+}
+
+// GetLastFetchTime は最終フェッチ時刻を読み込みます
+func GetLastFetchTime() (time.Time, error) {
+	cacheDir, err := EnsureCacheDir()
+	if err != nil {
+		return time.Time{}, fmt.Errorf("キャッシュディレクトリの確保に失敗しました: %v", err)
+	}
+
+	timestampFile := filepath.Join(cacheDir, "last_fetch.txt")
+	data, err := os.ReadFile(timestampFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return time.Time{}, nil
+		}
+		return time.Time{}, fmt.Errorf("最終フェッチ時刻ファイルの読み込みに失敗しました: %v", err)
+	}
+
+	timestamp, err := time.Parse(time.RFC3339, string(data))
+	if err != nil {
+		return time.Time{}, fmt.Errorf("最終フェッチ時刻のパースに失敗しました: %v", err)
+	}
+
+	return timestamp, nil
+}
+
+// SaveLastFetchTime は最終フェッチ時刻を保存します
+func SaveLastFetchTime(timestamp time.Time) error {
+	cacheDir, err := EnsureCacheDir()
+	if err != nil {
+		return fmt.Errorf("キャッシュディレクトリの確保に失敗しました: %v", err)
+	}
+
+	timestampFile := filepath.Join(cacheDir, "last_fetch.txt")
+	data := timestamp.Format(time.RFC3339)
+
+	err = os.WriteFile(timestampFile, []byte(data), 0644)
+	if err != nil {
+		return fmt.Errorf("最終フェッチ時刻の保存に失敗しました: %v", err)
+	}
+
+	return nil
 }
