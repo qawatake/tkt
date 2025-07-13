@@ -15,6 +15,7 @@ require (
 	github.com/go-git/go-git/v5 v5.16.0
 	github.com/k1LoW/errors v1.0.0
 	github.com/mattn/go-tty v0.0.7
+	github.com/muesli/termenv v0.16.0
 	github.com/russross/blackfriday/v2 v2.1.0
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3
 	github.com/sourcegraph/conc v0.3.0
@@ -57,7 +58,6 @@ require (
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/reflow v0.3.0 // indirect
-	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/pjbgf/sha1cd v0.3.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
