@@ -17,7 +17,8 @@ import (
 )
 
 var (
-	queryDir string
+	queryDir       string
+	queryWorkspace bool
 )
 
 var queryCmd = &cobra.Command{
@@ -26,13 +27,26 @@ var queryCmd = &cobra.Command{
 	Short:   "ローカルのファイルをSQLで検索します。",
 	Long:    `ローカルのファイルをSQLで検索します。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// queryDirが指定されていない場合はキャッシュディレクトリを使用
+		// queryDirが指定されていない場合は、-wフラグに応じてディレクトリを決定
 		if queryDir == "" {
-			cacheDir, err := config.EnsureCacheDir()
-			if err != nil {
-				return fmt.Errorf("キャッシュディレクトリの取得に失敗しました: %v", err)
+			if queryWorkspace {
+				// ワークスペースディレクトリを使用
+				cfg, err := config.LoadConfig()
+				if err != nil {
+					return fmt.Errorf("設定の読み込みに失敗しました: %v", err)
+				}
+				if cfg.Directory == "" {
+					return fmt.Errorf("ワークスペースディレクトリが設定されていません")
+				}
+				queryDir = cfg.Directory
+			} else {
+				// キャッシュディレクトリを使用
+				cacheDir, err := config.EnsureCacheDir()
+				if err != nil {
+					return fmt.Errorf("キャッシュディレクトリの取得に失敗しました: %v", err)
+				}
+				queryDir = cacheDir
 			}
-			queryDir = cacheDir
 		}
 
 		// 2. マークダウンファイルを検索
@@ -148,4 +162,5 @@ func init() {
 
 	// フラグの設定
 	queryCmd.Flags().StringVarP(&queryDir, "dir", "d", "", "検索対象ディレクトリ")
+	queryCmd.Flags().BoolVarP(&queryWorkspace, "workspace", "w", false, "ワークスペースディレクトリを検索対象にする")
 }

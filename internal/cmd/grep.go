@@ -20,8 +20,13 @@ import (
 	"github.com/muesli/termenv"
 	"github.com/qawatake/tkt/internal/config"
 	"github.com/qawatake/tkt/internal/derrors"
+	"github.com/qawatake/tkt/internal/pkg/utils"
 	"github.com/qawatake/tkt/internal/ticket"
 	"github.com/spf13/cobra"
+)
+
+var (
+	useWorkspace bool
 )
 
 var grepCmd = &cobra.Command{
@@ -31,14 +36,29 @@ var grepCmd = &cobra.Command{
 	Long:    `ローカルのファイルを全文検索します。チケットのkeyと内容を表示します。`,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 		defer derrors.Wrap(&err)
-		// デフォルトでキャッシュディレクトリを使用
-		cacheDir, err := config.EnsureCacheDir()
-		if err != nil {
-			return fmt.Errorf("キャッシュディレクトリの取得に失敗しました: %v", err)
+
+		var searchDir string
+		if useWorkspace {
+			// ワークスペースディレクトリを使用
+			cfg, err := config.LoadConfig()
+			if err != nil {
+				return fmt.Errorf("設定の読み込みに失敗しました: %v", err)
+			}
+			if cfg.Directory == "" {
+				return fmt.Errorf("ワークスペースディレクトリが設定されていません")
+			}
+			searchDir = cfg.Directory
+		} else {
+			// デフォルトでキャッシュディレクトリを使用
+			cacheDir, err := config.EnsureCacheDir()
+			if err != nil {
+				return fmt.Errorf("キャッシュディレクトリの取得に失敗しました: %v", err)
+			}
+			searchDir = cacheDir
 		}
 
 		// マークダウンファイルを読み込み
-		tickets, err := loadTickets(cacheDir)
+		tickets, err := loadTickets(searchDir)
 		if err != nil {
 			return fmt.Errorf("チケットの読み込みに失敗しました: %v", err)
 		}
@@ -53,7 +73,7 @@ var grepCmd = &cobra.Command{
 		defer tty.Close()
 
 		// Bubble Teaアプリを起動
-		model, err := newGrepModel(tickets, cacheDir)
+		model, err := newGrepModel(tickets, searchDir)
 		if err != nil {
 			return err
 		}
@@ -71,6 +91,9 @@ var grepCmd = &cobra.Command{
 		}
 
 		t := model.Selected()
+		if t == nil {
+			return fmt.Errorf("チケットが選択されていません")
+		}
 		dto := ticketDTO{
 			Key:              t.Key,
 			ParentKey:        t.ParentKey,
@@ -125,6 +148,7 @@ type ticketItem struct {
 	key     string
 	title   string
 	content string
+	ticket  *ticket.Ticket // 元のticketオブジェクトを保持
 }
 
 // glamour.WithAutoStyleを使えない理由:
@@ -155,8 +179,21 @@ func newGrepModel(tickets []*ticket.Ticket, configDir string) (_ *grepModel, err
 		return nil, err
 	}
 
-	// updated_atの降順でソート
+	// ソート: 新規ファイル（JIRAキーなし）を最初に、その後はupdated_atの降順
 	sort.Slice(tickets, func(i, j int) bool {
+		// 新規ファイル（JIRAキーが無効）かどうかをチェック
+		isNewI := !utils.IsValidJIRAKey(tickets[i].Key)
+		isNewJ := !utils.IsValidJIRAKey(tickets[j].Key)
+
+		// 新規ファイルを優先
+		if isNewI && !isNewJ {
+			return true
+		}
+		if !isNewI && isNewJ {
+			return false
+		}
+
+		// 両方とも新規ファイルまたは両方とも既存ファイルの場合はupdated_atで比較
 		return tickets[i].UpdatedAt.After(tickets[j].UpdatedAt)
 	})
 
@@ -166,10 +203,18 @@ func newGrepModel(tickets []*ticket.Ticket, configDir string) (_ *grepModel, err
 		if t.Key == "" && t.Title == "" {
 			continue
 		}
+
+		// 未pushファイルの場合はキーを「DRAFT」として表示
+		displayKey := t.Key
+		if !utils.IsValidJIRAKey(t.Key) {
+			displayKey = "DRAFT"
+		}
+
 		items = append(items, ticketItem{
-			key:     t.Key,
+			key:     displayKey,
 			title:   t.Title,
 			content: t.Body, // フロントマターを除いた本文のみ
+			ticket:  t,      // 元のticketオブジェクトを保持
 		})
 	}
 
@@ -437,8 +482,8 @@ func (m *grepModel) renderLeftPane(width, height int) string {
 	for i := start; i < start+height && i < len(m.filteredItems); i++ {
 		item := m.filteredItems[i]
 
-		// キーを固定幅（12文字）で左詰めパディング
-		keyPadded := fmt.Sprintf("%-9s", item.key)
+		// キーを固定幅で左詰めパディング（DRAFTやJIRAキーに対応）
+		keyPadded := fmt.Sprintf("%-8s", item.key)
 		line := keyPadded
 
 		// タイトルがある場合は表示
@@ -499,20 +544,8 @@ func (m *grepModel) renderRightPane(width, height int) string {
 		return strings.Join(items, "\n")
 	}
 
-	// 選択されたチケットのkeyからticketオブジェクトを取得
-	selectedKey := m.filteredItems[m.cursor].key
-	var selectedTicket *ticket.Ticket
-
-	// チケット情報からフロントマター情報を取得
-	for _, t := range m.tickets {
-		if t.key == selectedKey {
-			// ファイルからTicketを読み込んでフロントマター情報を取得
-			if ticketData, err := ticket.FromFile(filepath.Join(m.configDir, t.key+".md")); err == nil {
-				selectedTicket = ticketData
-			}
-			break
-		}
-	}
+	// 選択されたチケットのticketオブジェクトを直接取得
+	selectedTicket := m.filteredItems[m.cursor].ticket
 
 	var items []string
 
@@ -605,18 +638,8 @@ func (m *grepModel) Selected() *ticket.Ticket {
 		return nil
 	}
 
-	selectedKey := m.filteredItems[m.cursor].key
-	for _, t := range m.tickets {
-		if t.key == selectedKey {
-			// ファイルからTicketを読み込んで返す
-			ticketData, err := ticket.FromFile(filepath.Join(m.configDir, t.key+".md"))
-			if err == nil {
-				return ticketData
-			}
-			break
-		}
-	}
-	return nil
+	// 選択されたアイテムから直接ticketオブジェクトを返す
+	return m.filteredItems[m.cursor].ticket
 }
 
 func loadTickets(dir string) ([]*ticket.Ticket, error) {
@@ -627,6 +650,12 @@ func loadTickets(dir string) ([]*ticket.Ticket, error) {
 			return err
 		}
 		if !d.IsDir() && strings.HasSuffix(path, ".md") {
+			// ドットで始まるファイル（既に削除マークされたもの）はスキップ
+			filename := filepath.Base(path)
+			if strings.HasPrefix(filename, ".") {
+				return nil
+			}
+
 			t, err := ticket.FromFile(path)
 			if err != nil {
 				// エラーは無視してスキップ
@@ -645,4 +674,7 @@ func loadTickets(dir string) ([]*ticket.Ticket, error) {
 
 func init() {
 	rootCmd.AddCommand(grepCmd)
+
+	// フラグの設定
+	grepCmd.Flags().BoolVarP(&useWorkspace, "workspace", "w", false, "ワークスペースディレクトリを検索対象にする")
 }
