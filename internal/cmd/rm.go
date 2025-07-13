@@ -483,11 +483,13 @@ func (m *rmModel) View() string {
 		}
 	}
 
-	header := fmt.Sprintf("検索: %s", m.searchQuery)
+	searchLine := fmt.Sprintf("検索: %s", m.searchQuery)
 	if selectedCount > 0 {
-		header += fmt.Sprintf(" (選択中: %d)", selectedCount)
+		searchLine += fmt.Sprintf(" (選択中: %d)", selectedCount)
 	}
-	header += " - Tab: 選択/解除  Enter: 削除実行  Esc: キャンセル"
+
+	helpLine := rmHelpStyle.Render("Tab: 選択/解除  Enter: 削除実行  Esc: キャンセル")
+	header := lipgloss.JoinVertical(lipgloss.Left, searchLine, helpLine)
 
 	if len(m.filteredItems) == 0 {
 		emptyMsg := lipgloss.NewStyle().
