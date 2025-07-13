@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/qawatake/tkt/internal/config"
@@ -73,7 +74,14 @@ func displayDiffsAsText(diffs []ticket.DiffResult) error {
 	for _, diff := range diffs {
 		if diff.HasDiff {
 			changedCount++
-			output.WriteString(fmt.Sprintf("\n\n[変更あり] %s (%s)\n", diff.Key, diff.FilePath))
+			// 削除されたチケットかどうかをチェック
+			if strings.HasPrefix(filepath.Base(diff.FilePath), ".") {
+				output.WriteString(fmt.Sprintf("\n\n[削除] %s (%s)\n", diff.Key, diff.FilePath))
+			} else if strings.Contains(diff.DiffText, "新規チケット:") {
+				output.WriteString(fmt.Sprintf("\n\n[新規] %s (%s)\n", diff.Key, diff.FilePath))
+			} else {
+				output.WriteString(fmt.Sprintf("\n\n[変更] %s (%s)\n", diff.Key, diff.FilePath))
+			}
 			if diff.DiffText != "" {
 				output.WriteString("差分:\n")
 				output.WriteString(diff.DiffText)
