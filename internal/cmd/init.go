@@ -187,10 +187,8 @@ func runInit() error {
 	fmt.Println()
 	updatedAtThreshold := time.Now().AddDate(0, -6, 0)
 	defaultJQL := fmt.Sprintf("project = %s AND updated >= '%s'", selectedProject.Key, updatedAtThreshold.Format("2006-01-02"))
-	defaultDirectory := "tmp"
 
 	jqlInput = defaultJQL
-	directoryInput = defaultDirectory
 
 	settingsForm := huh.NewForm(
 		huh.NewGroup(
@@ -201,8 +199,14 @@ func runInit() error {
 
 			huh.NewInput().
 				Title("マークダウンファイル格納ディレクトリ").
-				Description(fmt.Sprintf("ローカルに保存するチケットファイルの場所 (デフォルト: %s)", defaultDirectory)).
-				Value(&directoryInput),
+				Description("ローカルに保存するチケットファイルの場所 (例: tickets, issues, tmp)").
+				Value(&directoryInput).
+				Validate(func(s string) error {
+					if s == "" {
+						return fmt.Errorf("ディレクトリの指定は必須です")
+					}
+					return nil
+				}),
 		),
 	).WithTheme(huh.ThemeBase())
 
@@ -213,9 +217,6 @@ func runInit() error {
 
 	if jqlInput == "" {
 		jqlInput = defaultJQL
-	}
-	if directoryInput == "" {
-		directoryInput = defaultDirectory
 	}
 
 	// 9. Issue typesを取得
