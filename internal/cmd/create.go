@@ -73,7 +73,13 @@ func runCreate() error {
 				Title("チケットタイプ").
 				Description("作成するチケットの種類を選択").
 				Options(typeOptions...).
-				Value(&selectedType),
+				Value(&selectedType).
+				Validate(func(s string) error {
+					if s == "" {
+						return fmt.Errorf("チケットタイプの選択は必須です")
+					}
+					return nil
+				}),
 		),
 	).WithTheme(huh.ThemeBase())
 
