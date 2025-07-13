@@ -122,8 +122,14 @@ func runDirectRM(cfg *config.Config, ticketKeys []string) error {
 		if err != nil {
 			return fmt.Errorf("チケット %s が見つかりません: %v", key, err)
 		}
+		// 未pushファイルの場合はキーを「DRAFT」として表示
+		displayKey := t.Key
+		if !isValidJIRAKey(t.Key) {
+			displayKey = "DRAFT"
+		}
+
 		ticketItems = append(ticketItems, rmTicketItem{
-			key:      t.Key,
+			key:      displayKey,
 			title:    t.Title,
 			content:  t.Body,
 			ticket:   t,
@@ -311,9 +317,25 @@ func newRMModel(ticketsWithPath []ticketWithPath, ticketDir string) (_ *rmModel,
 		return nil, err
 	}
 
-	// updated_atの降順でソート
+	// ソート: 新規ファイル（JIRAキーなし）を最初に、その後はupdated_atの降順
 	sort.Slice(ticketsWithPath, func(i, j int) bool {
-		return ticketsWithPath[i].ticket.UpdatedAt.After(ticketsWithPath[j].ticket.UpdatedAt)
+		ticketI := ticketsWithPath[i].ticket
+		ticketJ := ticketsWithPath[j].ticket
+
+		// 新規ファイル（JIRAキーが無効）かどうかをチェック
+		isNewI := !isValidJIRAKey(ticketI.Key)
+		isNewJ := !isValidJIRAKey(ticketJ.Key)
+
+		// 新規ファイルを優先
+		if isNewI && !isNewJ {
+			return true
+		}
+		if !isNewI && isNewJ {
+			return false
+		}
+
+		// 両方とも新規ファイルまたは両方とも既存ファイルの場合はupdated_atで比較
+		return ticketI.UpdatedAt.After(ticketJ.UpdatedAt)
 	})
 
 	var items []rmTicketItem
@@ -322,8 +344,15 @@ func newRMModel(ticketsWithPath []ticketWithPath, ticketDir string) (_ *rmModel,
 		if tp.ticket.Key == "" && tp.ticket.Title == "" {
 			continue
 		}
+
+		// 未pushファイルの場合はキーを「DRAFT」として表示
+		displayKey := tp.ticket.Key
+		if !isValidJIRAKey(tp.ticket.Key) {
+			displayKey = "DRAFT"
+		}
+
 		items = append(items, rmTicketItem{
-			key:      tp.ticket.Key,
+			key:      displayKey,
 			title:    tp.ticket.Title,
 			content:  tp.ticket.Body,
 			ticket:   tp.ticket,
@@ -596,8 +625,8 @@ func (m *rmModel) renderLeftPane(width, height int) string {
 			checkbox = "[✓]"
 		}
 
-		// キーを固定幅（12文字）で左詰めパディング
-		keyPadded := fmt.Sprintf("%-9s", item.key)
+		// キーを固定幅で左詰めパディング（DRAFTやJIRAキーに対応）
+		keyPadded := fmt.Sprintf("%-8s", item.key)
 		line := fmt.Sprintf("%s %s", checkbox, keyPadded)
 
 		// タイトルがある場合は表示
