@@ -192,7 +192,7 @@ func runInit() error {
 
 	settingsForm := huh.NewForm(
 		huh.NewGroup(
-			huh.NewText().
+			huh.NewInput().
 				Title("JQL (JIRA Query Language)").
 				Description(fmt.Sprintf("チケット検索条件を指定 (デフォルト: %s)", defaultJQL)).
 				Value(&jqlInput),
