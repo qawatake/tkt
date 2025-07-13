@@ -9,13 +9,15 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/charmbracelet/glamour"
-	"github.com/charmbracelet/x/ansi"
-	tty "github.com/mattn/go-tty"
-
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
+	styleansi "github.com/charmbracelet/glamour/ansi"
+	"github.com/charmbracelet/glamour/styles"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+	tty "github.com/mattn/go-tty"
+	"github.com/muesli/termenv"
 	"github.com/qawatake/tkt/internal/config"
 	"github.com/qawatake/tkt/internal/derrors"
 	"github.com/qawatake/tkt/internal/ticket"
@@ -55,6 +57,8 @@ var grepCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		lipgloss.SetDefaultRenderer(lipgloss.NewRenderer(tty.Output()))
+		termenv.SetDefaultOutput(termenv.NewOutput(tty.Output()))
 		p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithOutput(tty.Output()), tea.WithMouseCellMotion())
 		_, err = p.Run()
 		if err != nil {
@@ -123,13 +127,28 @@ type ticketItem struct {
 	content string
 }
 
+// glamour.WithAutoStyleを使えない理由:
+// ↓でos.Stdout決め打ちでハンドリングしているため。
+// https://github.com/charmbracelet/glamour/blob/77e746ffccebf2311812364859ab676e0f8e1212/glamour.go#L308
+func customAutoStyle() (*styleansi.StyleConfig, error) {
+	if termenv.HasDarkBackground() {
+		return &styles.DarkStyleConfig, nil
+	}
+	return &styles.LightStyleConfig, nil
+}
+
 func newGrepModel(tickets []*ticket.Ticket, configDir string) (_ *grepModel, err error) {
 	defer derrors.Wrap(&err)
 	input := textinput.New()
 	input.Focus()
 
+	style, err := customAutoStyle()
+	if err != nil {
+		return nil, err
+	}
+
 	mdRenderer, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
+		glamour.WithStyles(*style),
 		glamour.WithEmoji(),
 	)
 	if err != nil {
@@ -332,27 +351,18 @@ func (m *grepModel) filterItems() {
 	}
 }
 
-var (
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("205"))
+// default rendererを差し替えるために、global変数では定義しない。
+func selectedStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Background(lipgloss.Color("57")).
+		Foreground(lipgloss.Color("230"))
+}
 
-	searchStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("240")).
-			Foreground(lipgloss.Color("230")).
-			Padding(0, 1)
-
-	selectedStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("57")).
-			Foreground(lipgloss.Color("230"))
-
-	borderStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("63"))
-
-	helpStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241"))
-)
+func borderStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("63"))
+}
 
 func (m *grepModel) View() string {
 	// 最小限の表示を保証
@@ -382,7 +392,7 @@ func (m *grepModel) View() string {
 
 	// 左ペイン（チケット一覧）
 	leftPane := m.renderLeftPane(leftWidth-2, availableHeight-2)
-	leftPaneStyled := borderStyle.
+	leftPaneStyled := borderStyle().
 		Width(leftWidth - 2).
 		Height(availableHeight - 2).
 		Render(leftPane)
@@ -393,7 +403,7 @@ func (m *grepModel) View() string {
 		Render(
 			m.renderCenterPane(centerWidth-2, availableHeight-2),
 		)
-	centerPaneStyled := borderStyle.
+	centerPaneStyled := borderStyle().
 		Width(centerWidth - 2).
 		Height(availableHeight - 2).
 		Render(centerPane)
@@ -405,7 +415,7 @@ func (m *grepModel) View() string {
 			Render(
 				m.renderRightPane(rightWidth-2, availableHeight-2),
 			)
-	rightPaneStyled := borderStyle.
+	rightPaneStyled := borderStyle().
 		Width(rightWidth - 2).
 		Height(availableHeight - 2).
 		Render(rightPane)
@@ -440,7 +450,7 @@ func (m *grepModel) renderLeftPane(width, height int) string {
 		line = ansi.TruncateWc(line, width, "…")
 
 		if i == m.cursor {
-			line = selectedStyle.Width(width).Render(line)
+			line = selectedStyle().Width(width).Render(line)
 		} else {
 			line = lipgloss.NewStyle().Width(width).Render(line)
 		}
