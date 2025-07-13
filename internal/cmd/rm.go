@@ -16,6 +16,7 @@ import (
 	tty "github.com/mattn/go-tty"
 	"github.com/qawatake/tkt/internal/config"
 	"github.com/qawatake/tkt/internal/derrors"
+	"github.com/qawatake/tkt/internal/pkg/utils"
 	"github.com/qawatake/tkt/internal/ticket"
 	"github.com/qawatake/tkt/internal/ui"
 	"github.com/spf13/cobra"
@@ -107,7 +108,7 @@ func runDirectRM(cfg *config.Config, ticketKeys []string) error {
 		}
 		// 未pushファイルの場合はキーを「DRAFT」として表示
 		displayKey := t.Key
-		if !isValidJIRAKey(t.Key) {
+		if !utils.IsValidJIRAKey(t.Key) {
 			displayKey = "DRAFT"
 		}
 
@@ -135,7 +136,7 @@ func deleteTicket(ticketDir string, t *ticket.Ticket) error {
 	originalPath := filepath.Join(ticketDir, t.Key+".md")
 
 	// チケットがJIRAキーを持つかどうかをチェック
-	if isValidJIRAKey(t.Key) {
+	if utils.IsValidJIRAKey(t.Key) {
 		// JIRAキー付きチケットの場合：ドットプレフィックスでマーク
 		deletedPath := filepath.Join(ticketDir, "."+t.Key+".md")
 		return os.Rename(originalPath, deletedPath)
@@ -147,7 +148,7 @@ func deleteTicket(ticketDir string, t *ticket.Ticket) error {
 
 func deleteTicketWithPath(item rmTicketItem) error {
 	// チケットがJIRAキーを持つかどうかをチェック
-	if isValidJIRAKey(item.ticket.Key) {
+	if utils.IsValidJIRAKey(item.ticket.Key) {
 		// JIRAキー付きチケットの場合：ドットプレフィックスでマーク
 		dir := filepath.Dir(item.filePath)
 		deletedPath := filepath.Join(dir, "."+item.ticket.Key+".md")
@@ -289,8 +290,8 @@ func newRMModel(ticketsWithPath []ticketWithPath, ticketDir string) (_ *rmModel,
 		ticketJ := ticketsWithPath[j].ticket
 
 		// 新規ファイル（JIRAキーが無効）かどうかをチェック
-		isNewI := !isValidJIRAKey(ticketI.Key)
-		isNewJ := !isValidJIRAKey(ticketJ.Key)
+		isNewI := !utils.IsValidJIRAKey(ticketI.Key)
+		isNewJ := !utils.IsValidJIRAKey(ticketJ.Key)
 
 		// 新規ファイルを優先
 		if isNewI && !isNewJ {
@@ -313,7 +314,7 @@ func newRMModel(ticketsWithPath []ticketWithPath, ticketDir string) (_ *rmModel,
 
 		// 未pushファイルの場合はキーを「DRAFT」として表示
 		displayKey := tp.ticket.Key
-		if !isValidJIRAKey(tp.ticket.Key) {
+		if !utils.IsValidJIRAKey(tp.ticket.Key) {
 			displayKey = "DRAFT"
 		}
 
