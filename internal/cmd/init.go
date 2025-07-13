@@ -64,8 +64,7 @@ func runInit() error {
 		huh.NewGroup(
 			huh.NewInput().
 				Title("JIRAサーバーのURL").
-				Description("JIRAインスタンスのベースURL").
-				Placeholder("https://your-domain.atlassian.net").
+				Description("JIRAインスタンスのベースURL (例: https://your-domain.atlassian.net)").
 				Value(&serverURL).
 				Validate(func(s string) error {
 					if s == "" {
@@ -76,8 +75,7 @@ func runInit() error {
 
 			huh.NewInput().
 				Title("ログインメールアドレス").
-				Description("JIRA認証に使用するメールアドレス").
-				Placeholder("your-email@company.com").
+				Description("JIRA認証に使用するメールアドレス (例: your-email@company.com)").
 				Value(&loginEmail).
 				Validate(func(s string) error {
 					if s == "" {
@@ -198,14 +196,12 @@ func runInit() error {
 		huh.NewGroup(
 			huh.NewText().
 				Title("JQL (JIRA Query Language)").
-				Description("チケット検索条件を指定").
-				Placeholder(defaultJQL).
+				Description(fmt.Sprintf("チケット検索条件を指定 (デフォルト: %s)", defaultJQL)).
 				Value(&jqlInput),
 
 			huh.NewInput().
 				Title("マークダウンファイル格納ディレクトリ").
-				Description("ローカルに保存するチケットファイルの場所").
-				Placeholder(defaultDirectory).
+				Description(fmt.Sprintf("ローカルに保存するチケットファイルの場所 (デフォルト: %s)", defaultDirectory)).
 				Value(&directoryInput),
 		),
 	).WithTheme(huh.ThemeBase())

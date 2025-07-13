@@ -59,8 +59,7 @@ func runCreate() error {
 		huh.NewGroup(
 			huh.NewInput().
 				Title("チケットタイトル").
-				Description("作成するチケットのタイトル").
-				Placeholder("チケットのタイトルを入力してください").
+				Description("作成するチケットのタイトル (例: ユーザー登録機能を追加)").
 				Value(&title).
 				Validate(func(s string) error {
 					if s == "" {
