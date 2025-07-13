@@ -37,6 +37,9 @@ func CompareDirs(localDir, cacheDir string) ([]DiffResult, error) {
 		return nil, fmt.Errorf("削除済みファイルの検索に失敗しました: %v", err)
 	}
 
+	// 削除済みファイルのキーを記録（重複処理を避けるため）
+	deletedKeys := make(map[string]bool)
+
 	// 削除済みファイルを処理
 	for _, deletedFile := range deletedFiles {
 		// 削除されたファイルを読み込み
@@ -44,6 +47,8 @@ func CompareDirs(localDir, cacheDir string) ([]DiffResult, error) {
 		if err != nil {
 			return nil, fmt.Errorf("削除済みファイルの読み込みに失敗しました: %v", err)
 		}
+
+		deletedKeys[deletedTicket.Key] = true
 
 		results = append(results, DiffResult{
 			Key:      deletedTicket.Key,
@@ -61,6 +66,11 @@ func CompareDirs(localDir, cacheDir string) ([]DiffResult, error) {
 		localTicket, err := FromFile(localFile)
 		if err != nil {
 			return nil, fmt.Errorf("ローカルファイルの読み込みに失敗しました: %v", err)
+		}
+
+		// 削除済みファイルとして既に処理済みの場合はスキップ
+		if deletedKeys[localTicket.Key] {
+			continue
 		}
 
 		// キャッシュファイルが存在するか確認

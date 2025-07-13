@@ -85,7 +85,6 @@ func runInteractiveRM(cfg *config.Config) error {
 		return nil
 	}
 
-
 	// 削除実行
 	return ui.WithSpinner("チケットを削除中...", func() error {
 		for _, item := range selectedTickets {
@@ -120,7 +119,6 @@ func runDirectRM(cfg *config.Config, ticketKeys []string) error {
 			filePath: filePath,
 		})
 	}
-
 
 	// 削除実行
 	return ui.WithSpinner("チケットを削除中...", func() error {
