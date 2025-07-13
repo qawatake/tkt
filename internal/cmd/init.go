@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/ktr0731/go-fuzzyfinder"
+	"github.com/charmbracelet/huh"
 	"github.com/qawatake/tkt/internal/config"
 	"github.com/qawatake/tkt/internal/ui"
 	"github.com/spf13/cobra"
@@ -55,25 +55,58 @@ func runInit() error {
 	fmt.Println("🔧 tkt設定セットアップ")
 	fmt.Println("=======================")
 
-	// 1. JIRAサーバーURLを入力
-	serverURL, err := ui.PromptForText("JIRAサーバーのURL (必須):", "https://your-domain.atlassian.net", true)
+	var serverURL, loginEmail string
+	var continueSetup bool
+
+	// 1. 基本設定フォーム
+	basicForm := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("JIRAサーバーのURL").
+				Description("JIRAインスタンスのベースURL (例: https://your-domain.atlassian.net)").
+				Value(&serverURL).
+				Validate(func(s string) error {
+					if s == "" {
+						return fmt.Errorf("JIRAサーバーURLは必須です")
+					}
+					return nil
+				}),
+
+			huh.NewInput().
+				Title("ログインメールアドレス").
+				Description("JIRA認証に使用するメールアドレス (例: your-email@company.com)").
+				Value(&loginEmail).
+				Validate(func(s string) error {
+					if s == "" {
+						return fmt.Errorf("ログインメールは必須です")
+					}
+					return nil
+				}),
+		),
+	).WithTheme(huh.ThemeBase())
+
+	err := basicForm.Run()
 	if err != nil {
-		return fmt.Errorf("JIRAサーバーURL入力がキャンセルされました: %v", err)
+		return fmt.Errorf("基本設定の入力がキャンセルされました: %v", err)
 	}
 
-	// 2. ログインメールを入力
-	loginEmail, err := ui.PromptForText("ログインメールアドレス (必須):", "your-email@company.com", true)
-	if err != nil {
-		return fmt.Errorf("ログインメール入力がキャンセルされました: %v", err)
-	}
-
-	// 3. APIトークンの確認
+	// 2. APIトークンの確認
 	apiToken := os.Getenv("JIRA_API_TOKEN")
 	if apiToken == "" {
 		fmt.Println("\n⚠️  JIRA_API_TOKEN環境変数が設定されていません。")
 		fmt.Println("   Atlassian API Token (https://id.atlassian.com/manage-profile/security/api-tokens) を取得して、")
 		fmt.Println("   環境変数 JIRA_API_TOKEN に設定してください。")
-		continueSetup, err := ui.PromptForConfirmation("続行しますか？")
+
+		confirmForm := huh.NewForm(
+			huh.NewGroup(
+				huh.NewConfirm().
+					Title("続行しますか？").
+					Description("APIトークンなしでもセットアップを続行できますが、後で設定が必要です").
+					Value(&continueSetup),
+			),
+		).WithTheme(huh.ThemeBase())
+
+		err := confirmForm.Run()
 		if err != nil {
 			return fmt.Errorf("確認入力がキャンセルされました: %v", err)
 		}
@@ -96,21 +129,20 @@ func runInit() error {
 	}
 
 	// 5. プロジェクトを選択
-	fmt.Println("\n📋 プロジェクトを選択してください (入力してフィルタリング可能):")
-	projectIdx, err := fuzzyfinder.Find(
-		projects,
-		func(i int) string {
-			return fmt.Sprintf("%s (%s)", projects[i].Name, projects[i].Key)
-		},
-		fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
-			return fmt.Sprintf("プロジェクト: %s\nキー: %s\nID: %s",
-				projects[i].Name, projects[i].Key, projects[i].ID)
-		}),
-	)
+	projectOptions := make([]ui.SelectorOption, len(projects))
+	for i, project := range projects {
+		projectOptions[i] = ui.SelectorOption{
+			Title:       fmt.Sprintf("%s (%s)", project.Name, project.Key),
+			Description: fmt.Sprintf("ID: %s", project.ID),
+			Value:       project,
+		}
+	}
+
+	selectedProjectValue, err := ui.Select("📋 プロジェクトを選択してください:", projectOptions)
 	if err != nil {
 		return fmt.Errorf("プロジェクトの選択がキャンセルされました: %v", err)
 	}
-	selectedProject := &projects[projectIdx]
+	selectedProject := selectedProjectValue.(JiraProject)
 
 	// 6. ボード一覧を取得
 	boards, err := ui.WithSpinnerValue(fmt.Sprintf("プロジェクト '%s' のボード一覧を取得中...", selectedProject.Name), func() ([]JiraBoard, error) {
@@ -130,31 +162,57 @@ func runInit() error {
 		}
 	} else {
 		// 7. ボードを選択
-		fmt.Println("\n📊 ボードを選択してください (入力してフィルタリング可能):")
-		boardIdx, err := fuzzyfinder.Find(
-			boards,
-			func(i int) string {
-				return fmt.Sprintf("%s (ID: %d)", boards[i].Name, boards[i].ID)
-			},
-			fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
-				return fmt.Sprintf("ボード: %s\nID: %d\nタイプ: %s",
-					boards[i].Name, boards[i].ID, boards[i].Type)
-			}),
-		)
+		boardOptions := make([]ui.SelectorOption, len(boards))
+		for i, board := range boards {
+			boardOptions[i] = ui.SelectorOption{
+				Title:       fmt.Sprintf("%s (ID: %d)", board.Name, board.ID),
+				Description: fmt.Sprintf("タイプ: %s", board.Type),
+				Value:       board,
+			}
+		}
+
+		selectedBoardValue, err := ui.Select("📊 ボードを選択してください:", boardOptions)
 		if err != nil {
 			return fmt.Errorf("ボードの選択がキャンセルされました: %v", err)
 		}
-		selectedBoard = &boards[boardIdx]
+		selectedBoardResult := selectedBoardValue.(JiraBoard)
+		selectedBoard = &selectedBoardResult
 	}
 
-	// 8. JQLを入力
+	// 8. JQLとディレクトリ設定フォーム
+	var jqlInput, directoryInput string
+
 	fmt.Println()
 	updatedAtThreshold := time.Now().AddDate(0, -6, 0)
 	defaultJQL := fmt.Sprintf("project = %s AND updated >= '%s'", selectedProject.Key, updatedAtThreshold.Format("2006-01-02"))
-	jqlInput, err := ui.PromptForText(fmt.Sprintf("JQL (デフォルト: %s):", defaultJQL), defaultJQL, false)
+
+	jqlInput = defaultJQL
+
+	settingsForm := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("JQL (JIRA Query Language)").
+				Description(fmt.Sprintf("チケット検索条件を指定 (デフォルト: %s)", defaultJQL)).
+				Value(&jqlInput),
+
+			huh.NewInput().
+				Title("マークダウンファイル格納ディレクトリ").
+				Description("ローカルに保存するチケットファイルの場所 (例: tickets, issues, tmp)").
+				Value(&directoryInput).
+				Validate(func(s string) error {
+					if s == "" {
+						return fmt.Errorf("ディレクトリの指定は必須です")
+					}
+					return nil
+				}),
+		),
+	).WithTheme(huh.ThemeBase())
+
+	err = settingsForm.Run()
 	if err != nil {
-		return fmt.Errorf("JQL入力がキャンセルされました: %v", err)
+		return fmt.Errorf("設定入力がキャンセルされました: %v", err)
 	}
+
 	if jqlInput == "" {
 		jqlInput = defaultJQL
 	}
@@ -165,16 +223,6 @@ func runInit() error {
 	})
 	if err != nil {
 		return fmt.Errorf("issue Types一覧の取得に失敗しました: %v", err)
-	}
-
-	// 10. ディレクトリを入力
-	defaultDirectory := "tmp"
-	directoryInput, err := ui.PromptForText(fmt.Sprintf("マークダウンファイル格納ディレクトリ (デフォルト: %s):", defaultDirectory), defaultDirectory, false)
-	if err != nil {
-		return fmt.Errorf("ディレクトリ入力がキャンセルされました: %v", err)
-	}
-	if directoryInput == "" {
-		directoryInput = defaultDirectory
 	}
 
 	// 11. 設定ファイルを作成

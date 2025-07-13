@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ktr0731/go-fuzzyfinder"
+	"github.com/charmbracelet/huh"
 	"github.com/qawatake/tkt/internal/config"
 	"github.com/qawatake/tkt/internal/jira"
 	"github.com/qawatake/tkt/internal/ticket"
@@ -40,38 +40,51 @@ func runCreate() error {
 	fmt.Println("🎫 新しいJIRAチケット作成")
 	fmt.Println("========================")
 
-	// 1. タイトルを入力
-	title, err := ui.PromptForText("チケットタイトル (必須):", "チケットのタイトルを入力してください", true)
-	if err != nil {
-		return fmt.Errorf("タイトル入力がキャンセルされました: %v", err)
-	}
+	var title, selectedType string
 
-	// 2. チケットタイプを選択 (プロジェクトに対応するもののみ)
-	var availableTypes []config.IssueType
-
-	// プロジェクト固有のAPIから取得したすべてのIssue Typeを使用
-	availableTypes = cfg.Issue.Types
-
+	// 1. タイトルとチケットタイプを入力
+	availableTypes := cfg.Issue.Types
 	if len(availableTypes) == 0 {
 		return fmt.Errorf("プロジェクト '%s' に対応するチケットタイプが見つかりません", cfg.Project.Key)
 	}
 
-	fmt.Println("\n📋 チケットタイプを選択してください:")
-
-	typeIdx, err := fuzzyfinder.Find(
-		availableTypes,
-		func(i int) string {
-			return availableTypes[i].Name
-		},
-		fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
-			t := availableTypes[i]
-			return fmt.Sprintf("タイプ: %s\nID: %s\nサブタスク: %t", t.Name, t.ID, t.Subtask)
-		}),
-	)
-	if err != nil {
-		return fmt.Errorf("チケットタイプの選択がキャンセルされました: %v", err)
+	// チケットタイプの選択肢を準備
+	typeOptions := make([]huh.Option[string], len(availableTypes))
+	for i, issueType := range availableTypes {
+		typeOptions[i] = huh.NewOption(issueType.Name, issueType.Name)
 	}
-	selectedType := availableTypes[typeIdx].Name
+
+	basicForm := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("チケットタイトル").
+				Description("作成するチケットのタイトル (例: ユーザー登録機能を追加)").
+				Value(&title).
+				Validate(func(s string) error {
+					if s == "" {
+						return fmt.Errorf("チケットタイトルは必須です")
+					}
+					return nil
+				}),
+
+			huh.NewSelect[string]().
+				Title("チケットタイプ").
+				Description("作成するチケットの種類を選択").
+				Options(typeOptions...).
+				Value(&selectedType).
+				Validate(func(s string) error {
+					if s == "" {
+						return fmt.Errorf("チケットタイプの選択は必須です")
+					}
+					return nil
+				}),
+		),
+	).WithTheme(huh.ThemeBase())
+
+	err = basicForm.Run()
+	if err != nil {
+		return fmt.Errorf("基本情報の入力がキャンセルされました: %v", err)
+	}
 
 	// 3. スプリント選択
 	var selectedSprintName string
@@ -97,10 +110,17 @@ func runCreate() error {
 				return stateOrder[sprints[i].State] < stateOrder[sprints[j].State]
 			})
 
-			// "スプリントに追加しない"オプションを先頭に追加
-			sprintOptions := []string{"スプリントに追加しない"}
+			// スプリント選択オプションを準備
+			sprintSelectorOptions := make([]ui.SelectorOption, len(sprints)+1)
 
-			for _, sprint := range sprints {
+			// "スプリントに追加しない"オプションを先頭に追加
+			sprintSelectorOptions[0] = ui.SelectorOption{
+				Title:       "スプリントに追加しない",
+				Description: "スプリントを指定せずにチケットを作成",
+				Value:       "",
+			}
+
+			for i, sprint := range sprints {
 				statusEmoji := ""
 				switch sprint.State {
 				case "active":
@@ -108,30 +128,20 @@ func runCreate() error {
 				case "future":
 					statusEmoji = "🔵 "
 				}
-				sprintOptions = append(sprintOptions, fmt.Sprintf("%s%s (%s)", statusEmoji, sprint.Name, sprint.State))
+
+				sprintSelectorOptions[i+1] = ui.SelectorOption{
+					Title:       fmt.Sprintf("%s%s (%s)", statusEmoji, sprint.Name, sprint.State),
+					Description: fmt.Sprintf("ID: %d | 開始: %s | 終了: %s", sprint.ID, sprint.StartDate, sprint.EndDate),
+					Value:       sprint.Name,
+				}
 			}
 
-			fmt.Println("\n🏃 スプリントを選択してください:")
-			sprintIdx, err := fuzzyfinder.Find(
-				sprintOptions,
-				func(i int) string {
-					return sprintOptions[i]
-				},
-				fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
-					if i == 0 {
-						return "スプリントに追加しません"
-					}
-					s := sprints[i-1]
-					return fmt.Sprintf("スプリント: %s\nID: %d\n状態: %s\n開始日: %s\n終了日: %s",
-						s.Name, s.ID, s.State, s.StartDate, s.EndDate)
-				}),
-			)
+			selectedSprintValue, err := ui.Select("🏃 スプリントを選択してください:", sprintSelectorOptions)
 			if err != nil {
 				fmt.Printf("⚠️  スプリント選択がキャンセルされました: %v\n", err)
 				fmt.Println("スプリントを選択せずに作成を続行します...")
-			} else if sprintIdx > 0 {
-				// インデックス0は「スプリントに追加しない」なので、1以上の場合のみ設定
-				selectedSprintName = sprints[sprintIdx-1].Name
+			} else {
+				selectedSprintName = selectedSprintValue.(string)
 			}
 		}
 	} else {
@@ -142,6 +152,10 @@ func runCreate() error {
 	fmt.Println("\n📝 ボディを編集します (vimエディタが開きます)...")
 	body, err := openEditor()
 	if err != nil {
+		if strings.Contains(err.Error(), "保存せずに終了") {
+			fmt.Println("⚠️ エディタが保存せずに終了されたため、チケット作成をキャンセルします。")
+			return nil
+		}
 		return fmt.Errorf("エディタの起動に失敗しました: %v", err)
 	}
 
@@ -185,6 +199,14 @@ func openEditor() (string, error) {
 	defer os.Remove(tmpFile.Name())
 	defer tmpFile.Close()
 
+	// ファイルの初期状態を記録
+	initialStat, err := os.Stat(tmpFile.Name())
+	if err != nil {
+		return "", fmt.Errorf("ファイル情報の取得に失敗しました: %v", err)
+	}
+	initialModTime := initialStat.ModTime()
+	initialSize := initialStat.Size()
+
 	tmpFile.Close()
 
 	// vimエディタを起動 (insertモードで開始)
@@ -197,6 +219,17 @@ func openEditor() (string, error) {
 		return "", fmt.Errorf("vimエディタの実行に失敗しました: %v", err)
 	}
 
+	// ファイルの変更を確認
+	finalStat, err := os.Stat(tmpFile.Name())
+	if err != nil {
+		return "", fmt.Errorf("ファイル情報の取得に失敗しました: %v", err)
+	}
+
+	// ファイルが変更されていない場合（サイズも変更時刻も同じ）は保存されていないと判断
+	if finalStat.ModTime().Equal(initialModTime) && finalStat.Size() == initialSize {
+		return "", fmt.Errorf("エディタが保存せずに終了されました")
+	}
+
 	// ファイルの内容を読み取り
 	content, err := os.ReadFile(tmpFile.Name())
 	if err != nil {
@@ -204,5 +237,6 @@ func openEditor() (string, error) {
 	}
 
 	body := strings.TrimSpace(string(content))
+
 	return body, nil
 }
