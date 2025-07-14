@@ -17,7 +17,7 @@ func PromptForConfirmation(message string) bool {
 			return false
 		}
 
-		response = strings.ToLower(strings.TrimSpace(response))
+		response = strings.ToLower(strings.TrimSpace(strings.ReplaceAll(response, "\r", "")))
 		if response == "y" || response == "yes" {
 			return true
 		} else if response == "n" || response == "no" || response == "" {
