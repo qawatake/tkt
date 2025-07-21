@@ -19,6 +19,7 @@ import (
 var (
 	queryDir       string
 	queryWorkspace bool
+	sqlQuery       string
 )
 
 var queryCmd = &cobra.Command{
@@ -112,12 +113,6 @@ var queryCmd = &cobra.Command{
 
 		verbose.Printf("一時ファイルを作成しました: %s\n", tempFile)
 
-		// 5. DuckDBのREPLを起動
-		verbose.Println("DuckDBのREPLを起動中...")
-		verbose.Printf("データベースのテーブル名: tickets\n")
-		verbose.Printf("使用例: SELECT * FROM tickets WHERE status = 'To Do';\n")
-		verbose.Println("終了するには .exit を入力してください")
-
 		// 初期化SQLファイルを作成
 		initSQL := fmt.Sprintf("CREATE TABLE tickets AS SELECT * FROM read_json_auto('%s');", tempFile)
 		initFile := filepath.Join("/tmp", fmt.Sprintf("tkt_init_%d.sql", time.Now().Unix()))
@@ -127,14 +122,51 @@ var queryCmd = &cobra.Command{
 			return fmt.Errorf("初期化SQLファイルの作成に失敗しました: %v", err)
 		}
 
-		// DuckDBコマンドを構築（初期化SQLファイルを読み込んでREPLを起動）
-		duckdbCmd := exec.Command("duckdb", ":memory:", "-init", initFile)
-		duckdbCmd.Stdin = os.Stdin
-		duckdbCmd.Stdout = os.Stdout
-		duckdbCmd.Stderr = os.Stderr
+		// sqlQueryが指定されている場合は、直接SQLを実行してJSON出力
+		if sqlQuery != "" {
+			// SQL実行用のファイルを作成
+			sqlFile := filepath.Join("/tmp", fmt.Sprintf("tkt_query_%d.sql", time.Now().Unix()))
+			fullSQL := fmt.Sprintf("%s\nCOPY (%s) TO '/dev/stdout' (FORMAT JSON);", initSQL, sqlQuery)
+			err = os.WriteFile(sqlFile, []byte(fullSQL), 0644)
+			if err != nil {
+				os.Remove(tempFile)
+				os.Remove(initFile)
+				return fmt.Errorf("SQLファイルの作成に失敗しました: %v", err)
+			}
 
-		// DuckDBを実行
-		err = duckdbCmd.Run()
+			// DuckDBでSQLを実行
+			duckdbCmd := exec.Command("duckdb", ":memory:", "-s", fullSQL)
+			duckdbCmd.Stderr = os.Stderr
+
+			output, err := duckdbCmd.Output()
+			if err != nil {
+				os.Remove(tempFile)
+				os.Remove(initFile)
+				os.Remove(sqlFile)
+				return fmt.Errorf("SQLの実行に失敗しました: %v", err)
+			}
+
+			// JSON出力
+			fmt.Print(string(output))
+
+			// 一時ファイルを削除
+			os.Remove(sqlFile)
+		} else {
+			// 5. DuckDBのREPLを起動
+			verbose.Println("DuckDBのREPLを起動中...")
+			verbose.Printf("データベースのテーブル名: tickets\n")
+			verbose.Printf("使用例: SELECT * FROM tickets WHERE status = 'To Do';\n")
+			verbose.Println("終了するには .exit を入力してください")
+
+			// DuckDBコマンドを構築（初期化SQLファイルを読み込んでREPLを起動）
+			duckdbCmd := exec.Command("duckdb", ":memory:", "-init", initFile)
+			duckdbCmd.Stdin = os.Stdin
+			duckdbCmd.Stdout = os.Stdout
+			duckdbCmd.Stderr = os.Stderr
+
+			// DuckDBを実行
+			err = duckdbCmd.Run()
+		}
 
 		// 初期化ファイルも削除
 		os.Remove(initFile)
@@ -163,4 +195,5 @@ func init() {
 	// フラグの設定
 	queryCmd.Flags().StringVarP(&queryDir, "dir", "d", "", "検索対象ディレクトリ")
 	queryCmd.Flags().BoolVarP(&queryWorkspace, "workspace", "w", false, "ワークスペースディレクトリを検索対象にする")
+	queryCmd.Flags().StringVarP(&sqlQuery, "command", "c", "", "実行するSQLクエリ（JSON形式で出力）")
 }
