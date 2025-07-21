@@ -18,6 +18,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	tty "github.com/mattn/go-tty"
 	"github.com/muesli/termenv"
+	"github.com/qawatake/tkt/internal/cache"
 	"github.com/qawatake/tkt/internal/config"
 	"github.com/qawatake/tkt/internal/derrors"
 	"github.com/qawatake/tkt/internal/pkg/utils"
@@ -36,6 +37,9 @@ var grepCmd = &cobra.Command{
 	Long:    `ローカルのファイルを全文検索します。チケットのkeyと内容を表示します。`,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 		defer derrors.Wrap(&err)
+
+		// Start background cache update
+		cache.StartBackgroundUpdate()
 
 		var searchDir string
 		if useWorkspace {

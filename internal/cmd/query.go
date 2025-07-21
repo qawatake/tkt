@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/qawatake/tkt/internal/cache"
 	"github.com/qawatake/tkt/internal/config"
 	"github.com/qawatake/tkt/internal/pkg/markdown"
 	"github.com/qawatake/tkt/internal/verbose"
@@ -28,6 +29,9 @@ var queryCmd = &cobra.Command{
 	Short:   "ローカルのファイルをSQLで検索します。",
 	Long:    `ローカルのファイルをSQLで検索します。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Start background cache update
+		cache.StartBackgroundUpdate()
+
 		// queryDirが指定されていない場合は、-wフラグに応じてディレクトリを決定
 		if queryDir == "" {
 			if queryWorkspace {
