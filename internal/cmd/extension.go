@@ -8,9 +8,10 @@ import (
 )
 
 var extensionCmd = &cobra.Command{
-	Use:   "extension",
-	Short: "Manage tkt extensions",
-	Long:  `Manage tkt extensions. Extensions are executables named tkt-* in your PATH.`,
+	Use:     "extension",
+	Aliases: []string{"ext"},
+	Short:   "Manage tkt extensions",
+	Long:    `Manage tkt extensions. Extensions are executables named tkt-* in your PATH.`,
 }
 
 var extensionListCmd = &cobra.Command{

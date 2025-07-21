@@ -8,6 +8,8 @@
 
 ```bash
 tkt extension list
+# または短縮形
+tkt ext list
 ```
 
 現在システムで利用可能な拡張を表示します：
