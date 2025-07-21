@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -62,4 +63,57 @@ func Execute() error {
 
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose.Enabled, "verbose", "v", false, "enable verbose output")
+
+	// Custom help template that includes extensions
+	rootCmd.SetHelpTemplate(getHelpTemplate())
+}
+
+func getHelpTemplate() string {
+	return `{{.Long | trimTrailingWhitespaces}}
+
+Usage:{{if .Runnable}}
+  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+  {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
+
+Aliases:
+  {{.NameAndAliases}}{{end}}{{if .HasExample}}
+
+Examples:
+{{.Example}}{{end}}{{if .HasAvailableSubCommands}}
+
+Available Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+Extensions:
+` + getExtensionsHelp() + `{{end}}{{if .HasAvailableLocalFlags}}
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+Global Flags:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+
+Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+
+Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
+`
+}
+
+func getExtensionsHelp() string {
+	manager := extension.NewManager()
+	extensions, err := manager.FindExtensions()
+	if err != nil || len(extensions) == 0 {
+		return "  <none>\n"
+	}
+
+	result := ""
+	for _, ext := range extensions {
+		// Pad extension name to match command padding (typically around 12 characters)
+		paddedName := fmt.Sprintf("%-12s", ext.Name)
+		result += fmt.Sprintf("  %s extension (via %s)\n", paddedName, ext.Path)
+	}
+
+	result += "\nUse \"tkt <extension-name> --help\" for more information about an extension.\n"
+	return result
 }
