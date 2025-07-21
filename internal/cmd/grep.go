@@ -110,6 +110,7 @@ var grepCmd = &cobra.Command{
 			OriginalEstimate: float64(t.OriginalEstimate),
 			URL:              t.URL,
 			Title:            t.Title,
+			FilePath:         t.FilePath,
 		}
 		// フロントマターをJSON形式で出力
 		b, err := json.Marshal(dto)
@@ -133,6 +134,7 @@ type ticketDTO struct {
 	OriginalEstimate float64 `json:"original_estimate"`
 	URL              string  `json:"url"`
 	Title            string  `json:"title"`
+	FilePath         string  `json:"_file_path"`
 }
 
 type grepModel struct {
