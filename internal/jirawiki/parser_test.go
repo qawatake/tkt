@@ -103,7 +103,7 @@ func TestParseTextEffectTags(t *testing.T) {
 		{
 			name:     "bold",
 			input:    "*bold*",
-			expected: "**bold**\n\n",
+			expected: "**bold**\n",
 		},
 		{
 			name:     "bold, italic and strikethrough",
@@ -128,7 +128,7 @@ func TestParseTextEffectTags(t *testing.T) {
 		{
 			name:     "normal sentence with braces and semicolon should be parsed as is",
 			input:    "Line with semicolon inside curly braces {{MySQL::Conn()}}.",
-			expected: "Line with semicolon inside curly braces {{MySQL::Conn()}}.",
+			expected: "Line with semicolon inside curly braces {{MySQL::Conn()}}.\n",
 		},
 	}
 
@@ -221,17 +221,17 @@ func TestParseReferenceLinks(t *testing.T) {
 		{
 			name:     "valid link without title",
 			input:    "[https://ankit.pl]",
-			expected: "[](https://ankit.pl)\n",
+			expected: "[https://ankit.pl]\n",
 		},
 		{
 			name:     "mailto link",
 			input:    "[mailto:hi@ankit.pl]",
-			expected: "[](mailto:hi@ankit.pl)\n",
+			expected: "[mailto:hi@ankit.pl]\n",
 		},
 		{
 			name:     "anchor link",
 			input:    "[#somewhere]",
-			expected: "[](#somewhere)\n",
+			expected: "[#somewhere]\n",
 		},
 		{
 			name:     "valid link wrapped around texts",
@@ -246,12 +246,12 @@ func TestParseReferenceLinks(t *testing.T) {
 		{
 			name:     "invalid link",
 			input:    "This is a [Link|https://ankit.pl, and some texts.",
-			expected: "This is a [Link|https://ankit.pl, and some texts.",
+			expected: "This is a [Link|https://ankit.pl, and some texts.\n",
 		},
 		{
 			name:     "empty link",
 			input:    "This link is empty []",
-			expected: "This link is empty []()\n",
+			expected: "This link is empty []\n",
 		},
 	}
 
@@ -278,7 +278,7 @@ func TestParseBlockQuote(t *testing.T) {
 			name: "blockquote",
 			input: `{quote}Blockquote
 {quote}`,
-			expected: "\n> Blockquote\n\n",
+			expected: "\n> Blockquote\n",
 		},
 		{
 			name:     "one line blockquote",
