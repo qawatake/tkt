@@ -3,7 +3,7 @@ module github.com/qawatake/tkt
 go 1.27.3
 
 require (
-	github.com/Code-Hex/dd v1.1.0
+	github.com/Code-Hex/dd v1.3.0
 	github.com/andygrunwald/go-jira v1.16.0
 	github.com/briandowns/spinner v1.23.2
 	github.com/charmbracelet/bubbles v0.21.0
