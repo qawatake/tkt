@@ -13,7 +13,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/charmbracelet/x/ansi v0.11.5
 	github.com/go-git/go-git/v5 v5.19.3
-	github.com/k1LoW/errors v1.0.0
+	github.com/k1LoW/errors v1.2.1
 	github.com/mattn/go-tty v0.0.7
 	github.com/muesli/termenv v0.16.0
 	github.com/russross/blackfriday/v2 v2.1.0
