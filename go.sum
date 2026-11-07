@@ -1,5 +1,5 @@
-github.com/Code-Hex/dd v1.1.0 h1:VEtTThnS9l7WhpKUIpdcWaf0B8Vp0LeeSEsxA1DZseI=
-github.com/Code-Hex/dd v1.1.0/go.mod h1:VaMyo/YjTJ3d4qm/bgtrUkT2w+aYwJ07Y7eCWyrJr1w=
+github.com/Code-Hex/dd v1.3.0 h1:Ij6jVjwrOQIPTHa+fM9HHgUBUj717BdInwRSyFPqN34=
+github.com/Code-Hex/dd v1.3.0/go.mod h1:VaMyo/YjTJ3d4qm/bgtrUkT2w+aYwJ07Y7eCWyrJr1w=
 github.com/MakeNowJust/heredoc v1.0.0 h1:cXCdzVdstXyiTqTvfqk9SDHpKNjxuom+DOlyEeQ4pzQ=
 github.com/MakeNowJust/heredoc v1.0.0/go.mod h1:mG5amYoWBHf8vpLOuehzbGGw0EHxpZZ6lCpQ4fNJ8LE=
 github.com/alecthomas/assert/v2 v2.11.0 h1:2Q9r3ki8+JYXvGsDyBXwH3LcJ+WK5D0gc5E8vS6K3D0=
